@@ -14,7 +14,6 @@ import {
 import { CheckCircleIcon, XCircleIcon } from "@heroicons/react/24/solid";
 
 import { deleteHistoryEntry } from "../../services/api";
-import { supabase } from "../../services/supabase";
 import { useAuth } from "../../hooks/useAuth";
 
 const AnalysisHistory = () => {
@@ -88,12 +87,7 @@ const AnalysisHistory = () => {
       )
     ) {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (session?.user) {
-          await deleteHistoryEntry(id);
-        }
+        await deleteHistoryEntry(id);
         removeFromHistory(id);
       } catch (error) {
         console.error("Failed to delete history:", error);

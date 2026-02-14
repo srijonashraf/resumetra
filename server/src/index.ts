@@ -3,11 +3,12 @@ import cors from "cors";
 import dotenv from "dotenv";
 import apiRouter from "./routes/api";
 import { testConnection } from "./config/database";
+import { requireEnv } from "./utils";
 
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 7000;
+const port = requireEnv("PORT");
 
 app.use(cors());
 app.use(express.json());

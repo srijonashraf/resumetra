@@ -62,7 +62,7 @@ export interface HistorySummary {
 export const getUserHistory = async (
   userId: string,
   limit: number = 50,
-  offset: number = 0
+  offset: number = 0,
 ): Promise<AnalysisHistoryEntry[]> => {
   const query = `
     SELECT 
@@ -164,7 +164,7 @@ const sanitizeYearsOfExperience = (years: unknown): number => {
  * Create a new analysis history entry
  */
 export const createHistoryEntry = async (
-  entry: CreateHistoryEntryInput
+  entry: CreateHistoryEntryInput,
 ): Promise<AnalysisHistoryEntry> => {
   const query = `
     INSERT INTO analysis_history (
@@ -190,7 +190,7 @@ export const createHistoryEntry = async (
   const sanitizedLeadershipScore = sanitizeScore(entry.leadership_score);
   const sanitizedOverallScore = sanitizeOverallScore(entry.overall_score);
   const sanitizedYearsOfExperience = sanitizeYearsOfExperience(
-    entry.years_of_experience
+    entry.years_of_experience,
   );
 
   const values = [
@@ -221,7 +221,7 @@ export const createHistoryEntry = async (
  */
 export const deleteHistoryEntry = async (
   id: string,
-  userId: string
+  userId: string,
 ): Promise<boolean> => {
   const query = `
     DELETE FROM analysis_history
@@ -243,7 +243,7 @@ export const deleteHistoryEntry = async (
  */
 export const getHistoryEntryById = async (
   id: string,
-  userId: string
+  userId: string,
 ): Promise<AnalysisHistoryEntry | null> => {
   const query = `
     SELECT 
@@ -278,7 +278,7 @@ export const getHistoryEntryById = async (
  * Get user's history summary and analytics
  */
 export const getUserHistorySummary = async (
-  userId: string
+  userId: string,
 ): Promise<HistorySummary> => {
   const query = `
     SELECT 
@@ -309,16 +309,16 @@ export const getUserHistorySummary = async (
     return {
       total_analyses: parseInt(summaryResult.rows[0].total_analyses, 10),
       average_overall_score: parseFloat(
-        summaryResult.rows[0].average_overall_score || 0
+        summaryResult.rows[0].average_overall_score || 0,
       ),
       average_education_score: parseFloat(
-        summaryResult.rows[0].average_education_score || 0
+        summaryResult.rows[0].average_education_score || 0,
       ),
       average_leadership_score: parseFloat(
-        summaryResult.rows[0].average_leadership_score || 0
+        summaryResult.rows[0].average_leadership_score || 0,
       ),
       latest_analysis: summaryResult.rows[0].latest_analysis,
-      score_trend: trendResult.rows.map((row) => ({
+      score_trend: trendResult.rows.map((row: any) => ({
         date: row.date,
         overall_score: parseFloat(row.overall_score),
       })),
@@ -333,7 +333,7 @@ export const getUserHistorySummary = async (
  * Get skill gap trends over time
  */
 export const getSkillGapTrends = async (
-  userId: string
+  userId: string,
 ): Promise<{ skill: string; frequency: number }[]> => {
   const query = `
     SELECT 
@@ -349,7 +349,7 @@ export const getSkillGapTrends = async (
 
   try {
     const result = await pool.query(query, [userId]);
-    return result.rows.map((row) => ({
+    return result.rows.map((row: any) => ({
       skill: row.skill,
       frequency: parseInt(row.frequency, 10),
     }));
@@ -363,7 +363,7 @@ export const getSkillGapTrends = async (
  * Get experience level progression
  */
 export const getExperienceLevelProgression = async (
-  userId: string
+  userId: string,
 ): Promise<{ date: Date; experience_level: string }[]> => {
   const query = `
     SELECT 
@@ -392,7 +392,7 @@ export const compareWithHistoricalAverage = async (
     overall_score: number;
     education_score: number;
     leadership_score: number;
-  }
+  },
 ) => {
   const query = `
     SELECT 

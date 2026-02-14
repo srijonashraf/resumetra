@@ -8,20 +8,59 @@ import {
   tailorResume,
   ResumeAnalysisSuccess,
 } from "../services/geminiService";
+import { verifyGoogleIdToken, signAppToken } from "../services/authService";
+import { upsertUserFromGoogleProfile } from "../services/userService";
+import {
+  createHistoryEntry,
+  deleteAllUserHistory,
+  deleteHistoryEntry,
+  getHistoryEntryById,
+} from "../services/historyService";
+import { checkGuestUsage } from "../services/guestService";
 
 const router = express.Router();
+
+// ==================== AUTH ====================
+
+// Google login endpoint: exchanges Google ID token for app JWT
+router.post("/auth/google", async (req, res) => {
+  try {
+    const { idToken } = req.body;
+
+    if (!idToken || typeof idToken !== "string") {
+      res.status(400).json({ error: "idToken is required" });
+      return;
+    }
+
+    const profile = await verifyGoogleIdToken(idToken);
+    const user = await upsertUserFromGoogleProfile(profile);
+    const token = signAppToken(user.id);
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        picture: user.picture,
+      },
+    });
+  } catch (error) {
+    console.error("Error during Google auth:", error);
+    res.status(401).json({ error: "Google authentication failed" });
+  }
+});
 
 // ==================== HEALTH & STATUS ====================
 
 // Health check
-router.get("/health", (req, res) => {
+router.get("/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
 // Check guest usage status
 router.get("/guest-status", async (req, res) => {
   try {
-    const { checkGuestUsage } = await import("../services/guestService");
     const guestUsage = await checkGuestUsage(req);
 
     res.json({
@@ -85,7 +124,7 @@ router.post("/analyze", optionalAuth, async (req: AuthRequest, res) => {
       response.guestId = req.guestUsage.guestId;
       response.remainingAnalyses = Math.max(
         0,
-        1 - (req.guestUsage.analysisCount || 0)
+        1 - (req.guestUsage.analysisCount || 0),
       );
       response.message =
         req.guestUsage.analysisCount === 1
@@ -261,9 +300,8 @@ router.get("/history", requireAuth, async (req: AuthRequest, res) => {
       return;
     }
 
-    const { getUserHistory, getUserHistoryCount } = await import(
-      "../services/historyService"
-    );
+    const { getUserHistory, getUserHistoryCount } =
+      await import("../services/historyService");
 
     const [history, total] = await Promise.all([
       getUserHistory(userId, limit, offset),
@@ -294,9 +332,8 @@ router.get("/history/summary", requireAuth, async (req: AuthRequest, res) => {
       return;
     }
 
-    const { getUserHistorySummary } = await import(
-      "../services/historyService"
-    );
+    const { getUserHistorySummary } =
+      await import("../services/historyService");
     const summary = await getUserHistorySummary(userId);
 
     res.json(summary);
@@ -326,7 +363,7 @@ router.get(
       console.error("Error fetching skill trends:", error);
       res.status(500).json({ error: "Failed to fetch skill trends" });
     }
-  }
+  },
 );
 
 // Get experience level progression
@@ -341,9 +378,8 @@ router.get(
         return;
       }
 
-      const { getExperienceLevelProgression } = await import(
-        "../services/historyService"
-      );
+      const { getExperienceLevelProgression } =
+        await import("../services/historyService");
       const progression = await getExperienceLevelProgression(userId);
 
       res.json({ progression });
@@ -351,7 +387,7 @@ router.get(
       console.error("Error fetching progression:", error);
       res.status(500).json({ error: "Failed to fetch progression data" });
     }
-  }
+  },
 );
 
 // Get specific history entry by ID
@@ -364,8 +400,8 @@ router.get("/history/:id", requireAuth, async (req: AuthRequest, res) => {
     }
 
     const { id } = req.params;
-    const { getHistoryEntryById } = await import("../services/historyService");
-    const entry = await getHistoryEntryById(id, userId);
+
+    const entry = await getHistoryEntryById(id as string, userId);
 
     if (!entry) {
       res.status(404).json({ error: "History entry not found" });
@@ -411,8 +447,6 @@ router.post("/history", requireAuth, async (req: AuthRequest, res) => {
       return;
     }
 
-    const { createHistoryEntry } = await import("../services/historyService");
-
     const entry = await createHistoryEntry({
       id,
       user_id: userId,
@@ -447,8 +481,7 @@ router.delete("/history/:id", requireAuth, async (req: AuthRequest, res) => {
     }
 
     const { id } = req.params;
-    const { deleteHistoryEntry } = await import("../services/historyService");
-    const deleted = await deleteHistoryEntry(id, userId);
+    const deleted = await deleteHistoryEntry(id as string, userId);
 
     if (deleted) {
       res.json({ success: true, message: "History entry deleted" });
@@ -472,7 +505,6 @@ router.delete("/history", requireAuth, async (req: AuthRequest, res) => {
       return;
     }
 
-    const { deleteAllUserHistory } = await import("../services/historyService");
     const deletedCount = await deleteAllUserHistory(userId);
 
     res.json({

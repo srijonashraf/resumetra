@@ -12,8 +12,9 @@ create table public.analysis_history (
   full_analysis jsonb not null,
   created_at timestamp with time zone not null default timezone ('utc'::text, now()),
   updated_at timestamp with time zone null default timezone ('utc'::text, now()),
+  
   constraint analysis_history_pkey primary key (id),
-  constraint analysis_history_user_id_fkey foreign KEY (user_id) references auth.users (id) on delete CASCADE,
+  constraint analysis_history_user_id_fkey foreign KEY (user_id) references public.users (id) on delete CASCADE,
   constraint analysis_history_leadership_score_check check (
     (
       (leadership_score >= 1)

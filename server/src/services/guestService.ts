@@ -3,7 +3,6 @@ import pool from "../config/database";
 export interface GuestAnalytics {
   id: string;
   ip_address: string;
-  mac_address?: string;
   user_agent?: string;
   analysis_count: number;
   last_analysis_at: Date;
@@ -33,14 +32,6 @@ export const getClientIP = (req: any): string => {
 };
 
 /**
- * Get MAC address from request headers (if available)
- * Note: MAC address is not directly accessible via HTTP, but clients can send it in headers
- */
-export const getClientMAC = (req: any): string | undefined => {
-  return req.headers["x-mac-address"] || undefined;
-};
-
-/**
  * Get user agent from request
  */
 export const getUserAgent = (req: any): string | undefined => {
@@ -52,7 +43,6 @@ export const getUserAgent = (req: any): string | undefined => {
  */
 export const checkGuestUsage = async (req: any): Promise<GuestUsageResult> => {
   const ipAddress = getClientIP(req);
-  const macAddress = getClientMAC(req);
   const userAgent = getUserAgent(req);
 
   try {
@@ -60,15 +50,12 @@ export const checkGuestUsage = async (req: any): Promise<GuestUsageResult> => {
     const existingGuestQuery = `
       SELECT id, analysis_count, last_analysis_at
       FROM guest_usage
-      WHERE ip_address = $1 OR mac_address = $2
+      WHERE ip_address = $1
       ORDER BY last_analysis_at DESC
       LIMIT 1
     `;
 
-    const result = await pool.query(existingGuestQuery, [
-      ipAddress,
-      macAddress,
-    ]);
+    const result = await pool.query(existingGuestQuery, [ipAddress]);
 
     if (result.rows.length > 0) {
       const guest = result.rows[0];
@@ -96,8 +83,8 @@ export const checkGuestUsage = async (req: any): Promise<GuestUsageResult> => {
     const guestId = `guest_${Date.now()}_${Math.random()
       .toString(36)
       .substring(2, 11)}`;
-    await createGuestEntry(guestId, ipAddress, macAddress, userAgent);
 
+    await createGuestEntry(guestId, ipAddress, userAgent);
     return {
       allowed: true,
       guestId: guestId,
@@ -119,15 +106,14 @@ export const checkGuestUsage = async (req: any): Promise<GuestUsageResult> => {
 const createGuestEntry = async (
   guestId: string,
   ipAddress: string,
-  macAddress?: string,
-  userAgent?: string
+  userAgent?: string,
 ): Promise<void> => {
   const query = `
-    INSERT INTO guest_usage (id, ip_address, mac_address, user_agent, analysis_count)
-    VALUES ($1, $2, $3, $4, 1)
+    INSERT INTO guest_usage (id, ip_address, user_agent, analysis_count)
+    VALUES ($1, $2, $3, 1)
   `;
 
-  await pool.query(query, [guestId, ipAddress, macAddress, userAgent]);
+  await pool.query(query, [guestId, ipAddress, userAgent]);
 };
 
 /**
@@ -148,10 +134,10 @@ const incrementGuestUsage = async (guestId: string): Promise<void> => {
  * Get guest analytics by ID
  */
 export const getGuestById = async (
-  guestId: string
+  guestId: string,
 ): Promise<GuestAnalytics | null> => {
   const query = `
-    SELECT id, ip_address, mac_address, user_agent, analysis_count,
+    SELECT id, ip_address, user_agent, analysis_count,
            last_analysis_at, created_at, updated_at
     FROM guest_usage
     WHERE id = $1

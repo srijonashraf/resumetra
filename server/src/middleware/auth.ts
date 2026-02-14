@@ -1,16 +1,17 @@
 import { Request, Response, NextFunction } from "express";
-import { supabase } from "../config/supabase";
 import { checkGuestUsage, GuestUsageResult } from "../services/guestService";
+import { findUserById, User } from "../services/userService";
+import { verifyAppToken } from "../services/authService";
 
-export interface AuthRequest extends Request {
-  user?: any;
+export type AuthRequest = Request & {
+  user?: User;
   guestUsage?: GuestUsageResult;
-}
+};
 
 export const requireAuth = async (
   req: AuthRequest,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
   const authHeader = req.headers.authorization;
 
@@ -22,12 +23,10 @@ export const requireAuth = async (
   const token = authHeader.split(" ")[1];
 
   try {
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser(token);
+    const payload = verifyAppToken(token);
+    const user = await findUserById(payload.sub);
 
-    if (error || !user) {
+    if (!user) {
       res.status(401).json({ error: "Invalid token" });
       return;
     }
@@ -45,7 +44,7 @@ export const requireAuth = async (
 export const optionalAuth = async (
   req: AuthRequest,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
   const authHeader = req.headers.authorization;
 
@@ -53,12 +52,10 @@ export const optionalAuth = async (
   if (authHeader) {
     try {
       const token = authHeader.split(" ")[1];
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser(token);
+      const payload = verifyAppToken(token);
+      const user = await findUserById(payload.sub);
 
-      if (!error && user) {
+      if (user) {
         req.user = user;
         next();
         return;
@@ -77,7 +74,7 @@ export const optionalAuth = async (
       res.status(429).json({
         error: "Guest limit reached",
         message: guestUsage.message,
-        requiresLogin: true
+        requiresLogin: true,
       });
       return;
     }
@@ -86,7 +83,7 @@ export const optionalAuth = async (
   } catch (error) {
     res.status(500).json({
       error: "Guest verification failed",
-      message: "Please login to continue"
+      message: "Please login to continue",
     });
   }
 };

@@ -164,10 +164,42 @@ const cleanJSON = (text: string): string => {
   return text.replace(/```json\n?|\n?```/g, "").trim();
 };
 
+// Centralized generation config to keep responses as deterministic
+// and stable as possible across identical inputs.
+const DETERMINISTIC_GENERATION_CONFIG: any = {
+  // Make the model as deterministic as possible
+  temperature: 0,
+  // Conservative sampling to further reduce randomness
+  topK: 1,
+  topP: 0.1,
+  // Plenty of room for structured JSON responses
+  maxOutputTokens: 4096,
+  // Where supported, ask Gemini to return raw JSON only
+  responseMimeType: "application/json",
+};
+
+// Helper to send a prompt to Gemini using our deterministic config
+// and parse the JSON response in a single, strongly-typed place.
+const generateJsonWithGemini = async <T>(prompt: string): Promise<T> => {
+  const result = await model.generateContent({
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: prompt }],
+      },
+    ],
+    generationConfig: DETERMINISTIC_GENERATION_CONFIG,
+  });
+
+  const response = result.response;
+  const text = response.text();
+  return JSON.parse(cleanJSON(text)) as T;
+};
+
 // ==================== MAIN FUNCTIONS ====================
 
 export const analyzeResume = async (
-  resumeText: string
+  resumeText: string,
 ): Promise<ResumeAnalysisResult> => {
   if (!apiKey) throw new Error("Gemini API Key not found");
 
@@ -278,14 +310,11 @@ Resume text to analyze:
 ${resumeText}
   `;
 
-  const result = await model.generateContent(prompt);
-  const response = result.response;
-  const text = response.text();
-  return JSON.parse(cleanJSON(text)) as ResumeAnalysisResult;
+  return generateJsonWithGemini<ResumeAnalysisResult>(prompt);
 };
 
 export const generateCareerMap = async (
-  resumeText: string
+  resumeText: string,
 ): Promise<CareerMapResult> => {
   if (!apiKey) throw new Error("Gemini API Key not found");
 
@@ -370,15 +399,12 @@ Resume text:
 ${resumeText}
   `;
 
-  const result = await model.generateContent(prompt);
-  const response = result.response;
-  const text = response.text();
-  return JSON.parse(cleanJSON(text)) as CareerMapResult;
+  return generateJsonWithGemini<CareerMapResult>(prompt);
 };
 
 export const smartRewrite = async (
   originalText: string,
-  jobDescription: string
+  jobDescription: string,
 ): Promise<SmartRewriteResult> => {
   if (!apiKey) throw new Error("Gemini API Key not found");
 
@@ -470,15 +496,12 @@ Original Text: "${originalText}"
 Job Description: "${jobDescription}"
   `;
 
-  const result = await model.generateContent(prompt);
-  const response = result.response;
-  const text = response.text();
-  return JSON.parse(cleanJSON(text)) as SmartRewriteResult;
+  return generateJsonWithGemini<SmartRewriteResult>(prompt);
 };
 
 export const compareWithJobDescription = async (
   resumeText: string,
-  jobDescription: string
+  jobDescription: string,
 ): Promise<JobComparisonResult> => {
   if (!apiKey) throw new Error("Gemini API Key not found");
 
@@ -588,10 +611,7 @@ Job Description:
 ${jobDescription}
   `;
 
-  const result = await model.generateContent(prompt);
-  const response = result.response;
-  const text = response.text();
-  return JSON.parse(cleanJSON(text)) as JobComparisonResult;
+  return generateJsonWithGemini<JobComparisonResult>(prompt);
 };
 
 /**
@@ -600,7 +620,7 @@ ${jobDescription}
  */
 export const tailorResume = async (
   resumeText: string,
-  jobDescription: string
+  jobDescription: string,
 ): Promise<TailorResult> => {
   if (!apiKey) throw new Error("Gemini API Key not found");
 
@@ -678,11 +698,8 @@ Job Description:
 ${jobDescription}
   `;
 
-  const result = await model.generateContent(prompt);
-  const response = result.response;
-  const text = response.text();
-
-  const parsed = JSON.parse(cleanJSON(text)) as Omit<TailorResult, "metadata">;
+  const parsed =
+    await generateJsonWithGemini<Omit<TailorResult, "metadata">>(prompt);
 
   return {
     ...parsed,

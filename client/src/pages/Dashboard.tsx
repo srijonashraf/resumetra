@@ -153,12 +153,6 @@ const Dashboard = () => {
                   >
                     Login
                   </Link>
-                  <Link
-                    to="/signup"
-                    className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-full font-medium transition-all shadow-lg shadow-blue-500/20"
-                  >
-                    Sign Up
-                  </Link>
                 </div>
               )}
             </div>
@@ -221,13 +215,6 @@ const Dashboard = () => {
                     className="block text-slate-300 hover:text-white font-medium transition-colors"
                   >
                     Login
-                  </Link>
-                  <Link
-                    to="/signup"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="block bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-full font-medium transition-all shadow-lg shadow-blue-500/20 text-center"
-                  >
-                    Sign Up
                   </Link>
                 </div>
               )}
