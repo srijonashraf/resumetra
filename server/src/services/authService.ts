@@ -1,14 +1,17 @@
 import { OAuth2Client } from "google-auth-library";
-import jwt, { SignOptions, type JwtPayload } from "jsonwebtoken";
-import type { GoogleProfile } from "./userService";
+import jwt, { type JwtPayload, type SignOptions } from "jsonwebtoken";
 import { requireEnv } from "../utils";
+import type { GoogleProfile } from "./userService";
+
+// ==================== TYPE DEFINITIONS ====================
 
 export interface AppJwtPayload extends JwtPayload {
-  /** Internal user id in our Postgres `users` table. */
+  /** Internal user ID in our Postgres `users` table */
   sub: string;
 }
 
-// Environment configuration
+// ==================== CONFIGURATION ====================
+
 const GOOGLE_CLIENT_ID = requireEnv("GOOGLE_CLIENT_ID");
 const JWT_SECRET = requireEnv("JWT_SECRET");
 const JWT_EXPIRES_IN = requireEnv("JWT_EXPIRES_IN");
@@ -16,8 +19,10 @@ const JWT_EXPIRES_IN = requireEnv("JWT_EXPIRES_IN");
 // Google OAuth client used to verify ID tokens from the frontend
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
+// ==================== GOOGLE AUTH ====================
+
 /**
- * Verify a Google ID token using Google's public keys and return a normalized profile.
+ * Verify a Google ID token using Google's public keys and return a normalized profile
  */
 export const verifyGoogleIdToken = async (
   idToken: string,
@@ -41,8 +46,10 @@ export const verifyGoogleIdToken = async (
   };
 };
 
+// ==================== JWT OPERATIONS ====================
+
 /**
- * Sign an application JWT for a user, using our shared secret.
+ * Sign an application JWT for a user using our shared secret
  */
 export const signAppToken = (userId: string): string => {
   const payload: AppJwtPayload = { sub: userId };
@@ -53,7 +60,7 @@ export const signAppToken = (userId: string): string => {
 };
 
 /**
- * Verify an application JWT and return the decoded payload.
+ * Verify an application JWT and return the decoded payload
  */
 export const verifyAppToken = (token: string): AppJwtPayload => {
   return jwt.verify(token, JWT_SECRET) as AppJwtPayload;

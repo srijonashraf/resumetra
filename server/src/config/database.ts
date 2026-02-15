@@ -4,32 +4,13 @@ import { requireEnv } from "../utils";
 
 dotenv.config();
 
-// Environment configuration
 const DATABASE_URL = requireEnv("DATABASE_URL");
-const DB_SSL = requireEnv("DB_SSL") === "true";
-const DB_SSL_REJECT_UNAUTHORIZED =
-  requireEnv("DB_SSL_REJECT_UNAUTHORIZED") === "true";
 
-// Base pool configuration: always read from DATABASE_URL
 const config: PoolConfig = {
   connectionString: DATABASE_URL,
 };
 
-/**
- * Optional SSL settings for cloud-hosted Postgres.
- *
- * - DB_SSL=false (default): let driver / provider decide SSL behaviour
- * - DB_SSL=true: enable SSL
- *   - DB_SSL_REJECT_UNAUTHORIZED=false (default): accept provided certs
- *   - DB_SSL_REJECT_UNAUTHORIZED=true: require trusted CA
- */
-if (DB_SSL) {
-  config.ssl = {
-    rejectUnauthorized: DB_SSL_REJECT_UNAUTHORIZED,
-  };
-}
-
-// Shared connection pool used across the backend
+// Create a connection pool to manage multiple database connections efficiently.
 const pool = new Pool(config);
 
 pool.on("error", (err: Error) => {
@@ -48,6 +29,11 @@ export const testConnection = async (): Promise<void> => {
     console.error("❌ Failed to connect to PostgreSQL database", error);
     process.exit(-1);
   }
+};
+
+export const closeConnection = async (): Promise<void> => {
+  await pool.end();
+  process.exit(0);
 };
 
 export default pool;

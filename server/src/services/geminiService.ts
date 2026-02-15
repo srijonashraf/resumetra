@@ -4,7 +4,18 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const apiKey = process.env.GEMINI_API_KEY;
-const genAI = new GoogleGenerativeAI(apiKey || "");
+
+/**
+ * Validate Gemini API key at module load time
+ * Fail fast if configuration is missing
+ */
+if (!apiKey) {
+  throw new Error(
+    "GEMINI_API_KEY environment variable is required but not configured",
+  );
+}
+
+const genAI = new GoogleGenerativeAI(apiKey);
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 // ==================== TYPE DEFINITIONS ====================
@@ -164,22 +175,22 @@ const cleanJSON = (text: string): string => {
   return text.replace(/```json\n?|\n?```/g, "").trim();
 };
 
-// Centralized generation config to keep responses as deterministic
-// and stable as possible across identical inputs.
-const DETERMINISTIC_GENERATION_CONFIG: any = {
-  // Make the model as deterministic as possible
-  temperature: 0,
-  // Conservative sampling to further reduce randomness
-  topK: 1,
-  topP: 0.1,
-  // Plenty of room for structured JSON responses
-  maxOutputTokens: 4096,
-  // Where supported, ask Gemini to return raw JSON only
-  responseMimeType: "application/json",
-};
+/**
+ * Centralized generation config to keep responses as deterministic
+ * and stable as possible across identical inputs
+ */
+const DETERMINISTIC_GENERATION_CONFIG = {
+  temperature: 0, // Make the model as deterministic as possible
+  topK: 1, // Conservative sampling to reduce randomness
+  topP: 0.1, // Further reduce randomness
+  maxOutputTokens: 4096, // Plenty of room for structured JSON responses
+  responseMimeType: "application/json", // Ask Gemini to return raw JSON only
+} as const;
 
-// Helper to send a prompt to Gemini using our deterministic config
-// and parse the JSON response in a single, strongly-typed place.
+/**
+ * Helper to send a prompt to Gemini using our deterministic config
+ * and parse the JSON response in a single, strongly-typed place
+ */
 const generateJsonWithGemini = async <T>(prompt: string): Promise<T> => {
   const result = await model.generateContent({
     contents: [
@@ -201,8 +212,6 @@ const generateJsonWithGemini = async <T>(prompt: string): Promise<T> => {
 export const analyzeResume = async (
   resumeText: string,
 ): Promise<ResumeAnalysisResult> => {
-  if (!apiKey) throw new Error("Gemini API Key not found");
-
   const currentDate = new Date().toISOString().split("T")[0];
 
   const prompt = `
@@ -316,8 +325,6 @@ ${resumeText}
 export const generateCareerMap = async (
   resumeText: string,
 ): Promise<CareerMapResult> => {
-  if (!apiKey) throw new Error("Gemini API Key not found");
-
   const prompt = `
 You are a Senior Career Development Advisor with expertise in technology career progression, industry trends, and talent development across diverse tech roles.
 
@@ -406,8 +413,6 @@ export const smartRewrite = async (
   originalText: string,
   jobDescription: string,
 ): Promise<SmartRewriteResult> => {
-  if (!apiKey) throw new Error("Gemini API Key not found");
-
   const prompt = `
 You are an Expert ATS (Applicant Tracking System) Optimization Specialist and Resume Writer with deep knowledge of keyword optimization, industry-specific terminology, and hiring manager preferences.
 
@@ -503,8 +508,6 @@ export const compareWithJobDescription = async (
   resumeText: string,
   jobDescription: string,
 ): Promise<JobComparisonResult> => {
-  if (!apiKey) throw new Error("Gemini API Key not found");
-
   const currentDate = new Date().toISOString().split("T")[0];
 
   const prompt = `
@@ -622,8 +625,6 @@ export const tailorResume = async (
   resumeText: string,
   jobDescription: string,
 ): Promise<TailorResult> => {
-  if (!apiKey) throw new Error("Gemini API Key not found");
-
   const currentDate = new Date().toISOString().split("T")[0];
 
   const prompt = `

@@ -1,5 +1,7 @@
 import pool from "../config/database";
 
+// ==================== TYPE DEFINITIONS ====================
+
 export interface GuestAnalytics {
   id: string;
   ip_address: string;
@@ -17,18 +19,18 @@ export interface GuestUsageResult {
   analysisCount?: number;
 }
 
+// ==================== UTILITY FUNCTIONS ====================
+
 /**
  * Get client IP address from request
  */
 export const getClientIP = (req: any): string => {
-  return (
-    req.headers["x-forwarded-for"]?.split(",")[0] ||
-    req.headers["x-real-ip"] ||
-    req.connection?.remoteAddress ||
-    req.socket?.remoteAddress ||
-    req.ip ||
-    "127.0.0.1"
-  );
+  // Only trust x-forwarded-for if app is behind a proxy
+  if (process.env.TRUST_PROXY === "true") {
+    const forwarded = req.headers["x-forwarded-for"];
+    if (forwarded) return forwarded.split(",")[0].trim();
+  }
+  return req.ip || req.connection?.remoteAddress || "127.0.0.1";
 };
 
 /**
@@ -37,6 +39,8 @@ export const getClientIP = (req: any): string => {
 export const getUserAgent = (req: any): string | undefined => {
   return req.headers["user-agent"];
 };
+
+// ==================== GUEST USAGE MANAGEMENT ====================
 
 /**
  * Check if guest user is allowed to analyze resume
@@ -100,9 +104,9 @@ export const checkGuestUsage = async (req: any): Promise<GuestUsageResult> => {
   }
 };
 
-/**
- * Create new guest analytics entry
- */
+// ==================== PRIVATE HELPERS ====================
+
+// ==================== PRIVATE HELPERS ====================
 const createGuestEntry = async (
   guestId: string,
   ipAddress: string,
@@ -130,6 +134,8 @@ const incrementGuestUsage = async (guestId: string): Promise<void> => {
   await pool.query(query, [guestId]);
 };
 
+// ==================== ANALYTICS & MAINTENANCE ====================
+
 /**
  * Get guest analytics by ID
  */
@@ -153,7 +159,7 @@ export const getGuestById = async (
 };
 
 /**
- * Cleanup old guest entries (older than 30 days)
+ * Clean up old guest entries (older than 30 days)
  */
 export const cleanupOldGuestEntries = async (): Promise<void> => {
   const query = `
