@@ -1,5 +1,6 @@
 {
-  "name": "resume-radar-frontend",
+  "name": "resumetra-frontend",
+  "description": "Frontend for Resumetra",
   "private": true,
   "version": "0.0.0",
   "type": "module",

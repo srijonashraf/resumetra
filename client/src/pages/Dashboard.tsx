@@ -127,7 +127,7 @@ const Dashboard = () => {
             <div className="flex items-center gap-3">
               <Logo className="w-8 h-8 text-blue-500" />
               <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent tracking-tight">
-                ResumeRadar
+                Resumetra
               </h1>
             </div>
 

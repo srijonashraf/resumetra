@@ -47,7 +47,7 @@ const Login = () => {
               </div>
               <div>
                 <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-                  ResumeRadar
+                  Resumetra
                 </h1>
                 <p className="mt-3 text-slate-400">
                   One-click Google sign-in to unlock personalized resume

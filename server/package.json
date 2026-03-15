@@ -1,7 +1,7 @@
 {
-  "name": "resume-radar-backend",
+  "name": "resumetra-backend",
   "version": "1.0.0",
-  "description": "Backend for ResumeRadar",
+  "description": "Backend for Resumetra",
   "main": "dist/index.js",
   "scripts": {
     "start": "node dist/index.js",

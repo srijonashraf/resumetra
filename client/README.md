@@ -1,4 +1,4 @@
-# ResumeRadar
+# Resumetra
 
 An AI-powered resume analyzer dashboard built with React, TypeScript, and TailwindCSS. This application helps users improve their resumes by providing AI-driven analysis and job matching.
 
@@ -31,8 +31,8 @@ An AI-powered resume analyzer dashboard built with React, TypeScript, and Tailwi
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/ai-resume-analyzer.git
-   cd ai-resume-analyzer
+   git clone https://github.com/srijonashraf/resumetra
+   cd client
    ```
 
 2. Install dependencies:
