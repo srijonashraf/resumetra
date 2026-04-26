@@ -92,7 +92,7 @@ const Login = () => {
                   <GoogleLogin
                     onSuccess={handleGoogleSuccess}
                     onError={handleGoogleError}
-                    width="100%"
+                    width={320}
                   />
 
                   {loading && (
