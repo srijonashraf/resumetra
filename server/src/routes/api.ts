@@ -4,47 +4,61 @@ import {
   optionalAuth,
   type AuthRequest,
 } from "../middleware/auth";
-import {
-  validateResume,
-  validateResumeAndJob,
-  validateRewriteInput,
-} from "../middleware/validation";
+import { validateResume } from "../middleware/validation";
+import { asyncHandler } from "../middleware/asyncHandler";
 import { verifyGoogleIdToken, signAppToken } from "../services/authService";
 import { checkGuestUsage } from "../services/guestService";
 import {
-  analyzeResume,
+  parseAndScore,
+  generateFeedback,
   compareWithJobDescription,
   generateCareerMap,
-  smartRewrite,
   tailorResume,
-  type ResumeAnalysisSuccess,
-} from "../services/geminiService";
+  MODEL,
+  type CoreAnalysisData,
+  type ResumeAnalysisError,
+  type TokenUsage,
+} from "../services/aiService";
 import {
-  createHistoryEntry,
-  deleteAllUserHistory,
-  deleteHistoryEntry,
+  createAnalysis,
+  deleteAnalysis,
+  getAnalysisContext,
   getExperienceLevelProgression,
-  getHistoryEntryById,
+  getAnalysisById,
+  getHiringRecommendationTrends,
   getSkillGapTrends,
   getUserHistory,
   getUserHistoryCount,
   getUserHistorySummary,
+  saveTokenUsage,
 } from "../services/historyService";
+import type { ResumeAnalysisSuccess } from "../services/aiService";
 import { upsertUserFromGoogleProfile } from "../services/userService";
+import { NotFoundError, ValidationError } from "../errors";
 import pool from "../config/database";
 
 const router = express.Router();
 
+// ==================== TYPE GUARDS ====================
+
+function isResumeAnalysisError(data: unknown): data is ResumeAnalysisError {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    "error" in data &&
+    (data as { error: unknown }).error === "NOT_A_RESUME"
+  );
+}
+
 // ==================== AUTH ====================
 
-// Google login endpoint: exchanges Google ID token for app JWT
-router.post("/auth/google", async (req, res) => {
-  try {
+router.post(
+  "/auth/google",
+  asyncHandler(async (req, res) => {
     const { idToken } = req.body;
 
     if (!idToken || typeof idToken !== "string") {
-      res.status(400).json({ error: "idToken is required" });
-      return;
+      throw new ValidationError("idToken is required");
     }
 
     const profile = await verifyGoogleIdToken(idToken);
@@ -52,92 +66,106 @@ router.post("/auth/google", async (req, res) => {
     const token = signAppToken(user.id);
 
     res.json({
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        picture: user.picture,
+      data: {
+        token,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          picture: user.picture,
+        },
       },
     });
-  } catch (error) {
-    console.error("Error during Google auth:", error);
-    res.status(401).json({ error: "Google authentication failed" });
-  }
-});
+  }),
+);
 
 // ==================== HEALTH & STATUS ====================
 
-// Health check
-router.get("/health", async (_req, res) => {
-  try {
-    await pool.query("SELECT 1"); // Check DB
+router.get(
+  "/health",
+  asyncHandler(async (_req, res) => {
+    await pool.query("SELECT 1");
     res.json({
-      status: "ok",
-      timestamp: new Date().toISOString(),
-      database: "connected",
-      uptime: process.uptime(),
+      data: {
+        status: "ok",
+        timestamp: new Date().toISOString(),
+        database: "connected",
+        uptime: process.uptime(),
+      },
     });
-  } catch (error) {
-    console.error("Database connection error:", error);
-    res.status(503).json({
-      status: "error",
-      database: "disconnected",
-    });
-  }
-});
+  }),
+);
 
-// Check guest usage status
-router.get("/guest-status", async (req, res) => {
-  try {
+router.get(
+  "/guest-status",
+  asyncHandler(async (req, res) => {
     const guestUsage = await checkGuestUsage(req);
 
     res.json({
-      allowed: guestUsage.allowed,
-      message: guestUsage.message,
-      requiresLogin: !guestUsage.allowed,
+      data: {
+        allowed: guestUsage.allowed,
+        message: guestUsage.message,
+        requiresLogin: !guestUsage.allowed,
+      },
     });
-  } catch (error) {
-    console.error("Error checking guest status:", error);
-    res.status(500).json({ error: "Failed to check guest status" });
-  }
-});
+  }),
+);
 
 // ==================== ANALYSIS ROUTES ====================
 
-// Resume analysis (allows guest users with 1 analysis limit)
 router.post(
   "/analyze",
   optionalAuth,
   validateResume,
   async (req: AuthRequest, res) => {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+
+    const sendSSE = (event: string, data: unknown) => {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    const userId = req.user?.id ?? null;
+    const tokenRecords: { phase: string; usage: TokenUsage }[] = [];
+
     try {
-      const { resumeText } = req.body;
+      const { resumeText, sourceType, originalFileName } = req.body;
 
-      const result = await analyzeResume(resumeText);
+      const scoringCall = await parseAndScore(resumeText);
+      tokenRecords.push({ phase: "scoring", usage: scoringCall.usage });
 
-      // Check if AI detected non-resume content
-      if ("error" in result && result.error === "NOT_A_RESUME") {
-        res.status(400).json({
-          error: result.message,
-          detectedType: result.detectedType,
+      const scoringData = scoringCall.data;
+      if (isResumeAnalysisError(scoringData)) {
+        sendSSE("error", {
+          error: scoringData.message,
+          detectedType: scoringData.detectedType,
         });
+        res.end();
         return;
       }
 
-      // Type guard - ensure we have a successful analysis
-      const analysis = result as ResumeAnalysisSuccess;
+      sendSSE("scoring", scoringData);
 
-      // Prepare response with enhanced data
-      const response: any = {
-        ...analysis,
+      const feedbackCall = await generateFeedback(scoringData);
+      tokenRecords.push({ phase: "feedback", usage: feedbackCall.usage });
+
+      sendSSE("feedback", feedbackCall.data);
+
+      const fullResult = {
+        ...scoringData,
+        ...feedbackCall.data,
+      };
+
+      const response: Record<string, unknown> = {
+        ...fullResult,
         metadata: {
           analyzedAt: new Date().toISOString(),
           analysisVersion: "2.0",
         },
       };
 
-      // Add guest usage info if applicable
       if (req.guestUsage && !req.user) {
         response.isGuest = true;
         response.guestId = req.guestUsage.guestId;
@@ -151,142 +179,218 @@ router.post(
             : null;
       }
 
-      res.json(response);
+      // Persist structured analysis for authenticated users
+      if (userId) {
+        try {
+          const entry = await createAnalysis({
+            user_id: userId,
+            resume_text: resumeText,
+            source_type: sourceType || "text",
+            original_file_name: originalFileName,
+            ai_result: fullResult as ResumeAnalysisSuccess,
+            ai_model_version: MODEL,
+          });
+          response.analysisId = entry.analysis.id;
+        } catch (dbError) {
+          console.error("Failed to persist analysis:", dbError);
+        }
+      }
+
+      await saveTokenUsage(
+        tokenRecords.map((r) => ({
+          userId,
+          endpoint: "/analyze",
+          phase: r.phase,
+          model: MODEL,
+          usage: r.usage,
+        })),
+      );
+
+      sendSSE("complete", response);
+      res.end();
     } catch (error) {
       console.error("Error analyzing resume:", error);
-      res.status(500).json({
+
+      if (tokenRecords.length > 0) {
+        await saveTokenUsage(
+          tokenRecords.map((r) => ({
+            userId,
+            endpoint: "/analyze",
+            phase: r.phase,
+            model: MODEL,
+            usage: r.usage,
+          })),
+        );
+      }
+
+      sendSSE("error", {
         error: "Failed to analyze resume. Please try again later.",
       });
+      res.end();
     }
   },
 );
 
-// Compare resume with job description
+// ==================== AUTHENTICATED ANALYSIS ROUTES ====================
+
 router.post(
   "/job-match",
   requireAuth,
-  validateResumeAndJob,
-  async (req: AuthRequest, res) => {
-    try {
-      const { resumeText, jobDescription } = req.body;
+  asyncHandler(async (req: AuthRequest, res) => {
+    const { analysisId, jobDescription } = req.body;
+    const userId = req.user!.id;
 
-      const result = await compareWithJobDescription(
-        resumeText,
-        jobDescription,
-      );
-
-      res.json({
-        ...result,
-        metadata: {
-          analyzedAt: new Date().toISOString(),
-        },
-      });
-    } catch (error) {
-      console.error("Error comparing with job description:", error);
-      res.status(500).json({
-        error:
-          "Failed to compare with job description. Please try again later.",
-      });
+    if (!analysisId || typeof analysisId !== "string") {
+      throw new ValidationError("analysisId is required");
     }
-  },
+
+    if (!jobDescription || typeof jobDescription !== "string") {
+      throw new ValidationError("jobDescription is required");
+    }
+
+    if (jobDescription.length > 10000) {
+      throw new ValidationError(
+        "Job description is too long. Maximum 10,000 characters allowed.",
+      );
+    }
+
+    const context = await getAnalysisContext(analysisId, userId);
+    if (!context) {
+      throw new NotFoundError("Analysis");
+    }
+
+    const { data: result, usage } = await compareWithJobDescription(
+      context,
+      jobDescription,
+    );
+
+    await saveTokenUsage([
+      {
+        userId,
+        endpoint: "/job-match",
+        phase: "job-comparison",
+        model: MODEL,
+        usage,
+      },
+    ]);
+
+    res.json({
+      data: result,
+      metadata: { analyzedAt: new Date().toISOString() },
+    });
+  }),
 );
 
-// Tailor resume for specific job
 router.post(
   "/tailor",
   requireAuth,
-  validateResumeAndJob,
-  async (req: AuthRequest, res) => {
-    try {
-      const { resumeText, jobDescription } = req.body;
+  asyncHandler(async (req: AuthRequest, res) => {
+    const { analysisId, resumeText, jobDescription } = req.body;
+    const userId = req.user!.id;
 
-      const result = await tailorResume(resumeText, jobDescription);
-
-      res.json(result);
-    } catch (error) {
-      console.error("Error tailoring resume:", error);
-      res.status(500).json({
-        error: "Failed to tailor resume. Please try again later.",
-      });
+    if (!analysisId || typeof analysisId !== "string") {
+      throw new ValidationError("analysisId is required");
     }
-  },
+
+    if (!resumeText || typeof resumeText !== "string") {
+      throw new ValidationError("resumeText is required");
+    }
+
+    if (resumeText.length > 50000) {
+      throw new ValidationError(
+        "Resume text is too long. Maximum 50,000 characters allowed.",
+      );
+    }
+
+    if (!jobDescription || typeof jobDescription !== "string") {
+      throw new ValidationError("jobDescription is required");
+    }
+
+    if (jobDescription.length > 10000) {
+      throw new ValidationError(
+        "Job description is too long. Maximum 10,000 characters allowed.",
+      );
+    }
+
+    const context = await getAnalysisContext(analysisId, userId);
+    if (!context) {
+      throw new NotFoundError("Analysis");
+    }
+
+    const { data: result, usage } = await tailorResume(
+      context,
+      resumeText,
+      jobDescription,
+    );
+
+    await saveTokenUsage([
+      {
+        userId,
+        endpoint: "/tailor",
+        phase: "tailor",
+        model: MODEL,
+        usage,
+      },
+    ]);
+
+    res.json({
+      data: result,
+      metadata: { analyzedAt: new Date().toISOString() },
+    });
+  }),
 );
 
-// Generate career map from resume
 router.post(
   "/career-map",
   requireAuth,
-  validateResume,
-  async (req: AuthRequest, res) => {
-    try {
-      const { resumeText } = req.body;
+  asyncHandler(async (req: AuthRequest, res) => {
+    const { analysisId } = req.body;
+    const userId = req.user!.id;
 
-      const result = await generateCareerMap(resumeText);
-
-      res.json({
-        ...result,
-        metadata: {
-          generatedAt: new Date().toISOString(),
-        },
-      });
-    } catch (error) {
-      console.error("Error generating career map:", error);
-      res.status(500).json({
-        error: "Failed to generate career map. Please try again later.",
-      });
+    if (!analysisId || typeof analysisId !== "string") {
+      throw new ValidationError("analysisId is required");
     }
-  },
-);
 
-// Smart rewrite text for job context
-router.post(
-  "/rewrite",
-  requireAuth,
-  validateRewriteInput,
-  async (req: AuthRequest, res) => {
-    try {
-      const { originalText, jobDescription } = req.body;
-
-      const result = await smartRewrite(originalText, jobDescription);
-
-      res.json({
-        ...result,
-        metadata: {
-          rewrittenAt: new Date().toISOString(),
-        },
-      });
-    } catch (error) {
-      console.error("Error rewriting text:", error);
-      res.status(500).json({
-        error: "Failed to rewrite text. Please try again later.",
-      });
+    const context = await getAnalysisContext(analysisId, userId);
+    if (!context) {
+      throw new NotFoundError("Analysis");
     }
-  },
+
+    const { data: result, usage } = await generateCareerMap(context);
+
+    await saveTokenUsage([
+      {
+        userId,
+        endpoint: "/career-map",
+        phase: "career-map",
+        model: MODEL,
+        usage,
+      },
+    ]);
+
+    res.json({
+      data: result,
+      metadata: { analyzedAt: new Date().toISOString() },
+    });
+  }),
 );
 
 // ==================== HISTORY ROUTES ====================
 
-// Get user's analysis history with pagination
-router.get("/history", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      res.status(401).json({ error: "User not authenticated" });
-      return;
-    }
+router.get(
+  "/history",
+  requireAuth,
+  asyncHandler(async (req: AuthRequest, res) => {
+    const userId = req.user!.id;
+    const limit = parseInt(String(req.query.limit ?? "50"), 10);
+    const offset = parseInt(String(req.query.offset ?? "0"), 10);
 
-    const limit = parseInt(req.query.limit as string) || 50;
-    const offset = parseInt(req.query.offset as string) || 0;
-
-    // Validate pagination params
     if (limit < 1 || limit > 100) {
-      res.status(400).json({ error: "Limit must be between 1 and 100" });
-      return;
+      throw new ValidationError("Limit must be between 1 and 100");
     }
 
     if (offset < 0) {
-      res.status(400).json({ error: "Offset must be non-negative" });
-      return;
+      throw new ValidationError("Offset must be non-negative");
     }
 
     const [history, total] = await Promise.all([
@@ -296,207 +400,105 @@ router.get("/history", requireAuth, async (req: AuthRequest, res) => {
 
     res.json({
       data: history,
-      pagination: {
-        total,
-        limit,
-        offset,
-        hasMore: offset + limit < total,
+      metadata: {
+        pagination: { total, limit, offset, hasMore: offset + limit < total },
       },
     });
-  } catch (error) {
-    console.error("Error fetching history:", error);
-    res.status(500).json({ error: "Failed to fetch history" });
-  }
-});
+  }),
+);
 
-// Get history summary and analytics
-router.get("/history/summary", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      res.status(401).json({ error: "User not authenticated" });
-      return;
-    }
+router.get(
+  "/history/summary",
+  requireAuth,
+  asyncHandler(async (req: AuthRequest, res) => {
+    const summary = await getUserHistorySummary(req.user!.id);
+    res.json({ data: summary });
+  }),
+);
 
-    const summary = await getUserHistorySummary(userId);
-
-    res.json(summary);
-  } catch (error) {
-    console.error("Error fetching history summary:", error);
-    res.status(500).json({ error: "Failed to fetch history summary" });
-  }
-});
-
-// Get skill gap trends
 router.get(
   "/history/skill-trends",
   requireAuth,
-  async (req: AuthRequest, res) => {
-    try {
-      const userId = req.user?.id;
-      if (!userId) {
-        res.status(401).json({ error: "User not authenticated" });
-        return;
-      }
-
-      const trends = await getSkillGapTrends(userId);
-
-      res.json({ trends });
-    } catch (error) {
-      console.error("Error fetching skill trends:", error);
-      res.status(500).json({ error: "Failed to fetch skill trends" });
-    }
-  },
+  asyncHandler(async (req: AuthRequest, res) => {
+    const trends = await getSkillGapTrends(req.user!.id);
+    res.json({ data: trends });
+  }),
 );
 
-// Get experience level progression
 router.get(
   "/history/progression",
   requireAuth,
-  async (req: AuthRequest, res) => {
-    try {
-      const userId = req.user?.id;
-      if (!userId) {
-        res.status(401).json({ error: "User not authenticated" });
-        return;
-      }
-
-      const progression = await getExperienceLevelProgression(userId);
-
-      res.json({ progression });
-    } catch (error) {
-      console.error("Error fetching progression:", error);
-      res.status(500).json({ error: "Failed to fetch progression data" });
-    }
-  },
+  asyncHandler(async (req: AuthRequest, res) => {
+    const progression = await getExperienceLevelProgression(req.user!.id);
+    res.json({ data: progression });
+  }),
 );
 
-// Get specific history entry by ID
-router.get("/history/:id", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      res.status(401).json({ error: "User not authenticated" });
-      return;
-    }
+router.get(
+  "/history/hiring-trends",
+  requireAuth,
+  asyncHandler(async (req: AuthRequest, res) => {
+    const trends = await getHiringRecommendationTrends(req.user!.id);
+    res.json({ data: trends });
+  }),
+);
 
-    const { id } = req.params;
-
-    const entry = await getHistoryEntryById(id as string, userId);
+router.get(
+  "/history/:id",
+  requireAuth,
+  asyncHandler(async (req: AuthRequest, res) => {
+    const entry = await getAnalysisById(String(req.params.id), req.user!.id);
 
     if (!entry) {
-      res.status(404).json({ error: "History entry not found" });
-      return;
+      throw new NotFoundError("History entry");
     }
 
-    res.json(entry);
-  } catch (error) {
-    console.error("Error fetching history entry:", error);
-    res.status(500).json({ error: "Failed to fetch history entry" });
-  }
-});
+    res.json({ data: entry });
+  }),
+);
 
-// Create new history entry
-router.post("/history", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      res.status(401).json({ error: "User not authenticated" });
-      return;
+router.post(
+  "/history",
+  requireAuth,
+  asyncHandler(async (req: AuthRequest, res) => {
+    const { resumeText, sourceType, originalFileName, analysis } = req.body;
+
+    if (!resumeText || !analysis) {
+      throw new ValidationError(
+        "Missing required fields: resumeText and analysis",
+      );
     }
 
-    const { id, resumeText, analysis } = req.body;
-
-    // Validate required fields
-    if (!id || !resumeText || !analysis) {
-      res.status(400).json({
-        error:
-          "Missing required fields: id, resumeText, and analysis are required",
-      });
-      return;
+    if (!analysis.overallScore || !analysis.scores) {
+      throw new ValidationError("Invalid analysis object structure");
     }
 
-    // Validate analysis object structure
-    if (
-      !analysis.overallScore ||
-      !analysis.scores ||
-      !analysis.experienceLevel
-    ) {
-      res.status(400).json({
-        error: "Invalid analysis object structure",
-      });
-      return;
-    }
-
-    const entry = await createHistoryEntry({
-      id,
-      user_id: userId,
+    // user_id comes from the authenticated session, NOT from the request body
+    const entry = await createAnalysis({
+      user_id: req.user!.id,
       resume_text: resumeText,
-      education_score: analysis.scores.education,
-      leadership_score: analysis.scores.leadership,
-      overall_score: analysis.overallScore,
-      experience_level: analysis.experienceLevel,
-      years_of_experience: analysis.yearsOfExperience || 0,
-      missing_skills: analysis.missingSkills || [],
-      suggestions: [
-        ...(analysis.recommendations?.immediate || []),
-        ...(analysis.recommendations?.shortTerm || []),
-      ],
-      full_analysis: analysis,
+      source_type: sourceType || "text",
+      original_file_name: originalFileName,
+      ai_result: analysis,
+      ai_model_version: MODEL,
     });
 
-    res.status(201).json(entry);
-  } catch (error) {
-    console.error("Error creating history entry:", error);
-    res.status(500).json({ error: "Failed to create history entry" });
-  }
-});
+    res.status(201).json({ data: entry });
+  }),
+);
 
-// Delete history entry by ID
-router.delete("/history/:id", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      res.status(401).json({ error: "User not authenticated" });
-      return;
+router.delete(
+  "/history/:id",
+  requireAuth,
+  asyncHandler(async (req: AuthRequest, res) => {
+    const deleted = await deleteAnalysis(String(req.params.id), req.user!.id);
+
+    if (!deleted) {
+      throw new NotFoundError("History entry");
     }
 
-    const { id } = req.params;
-    const deleted = await deleteHistoryEntry(id as string, userId);
-
-    if (deleted) {
-      res.json({ success: true, message: "History entry deleted" });
-    } else {
-      res
-        .status(404)
-        .json({ error: "History entry not found or already deleted" });
-    }
-  } catch (error) {
-    console.error("Error deleting history entry:", error);
-    res.status(500).json({ error: "Failed to delete history entry" });
-  }
-});
-
-// Delete all history for user
-router.delete("/history", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      res.status(401).json({ error: "User not authenticated" });
-      return;
-    }
-
-    const deletedCount = await deleteAllUserHistory(userId);
-
-    res.json({
-      success: true,
-      message: `Deleted ${deletedCount} history entries`,
-      deletedCount,
-    });
-  } catch (error) {
-    console.error("Error deleting all history:", error);
-    res.status(500).json({ error: "Failed to delete history" });
-  }
-});
+    res.json({ data: { deleted: true } });
+  }),
+);
 
 export default router;

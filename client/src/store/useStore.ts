@@ -6,13 +6,14 @@ export interface ResumeData {
 }
 
 export interface AnalysisResult {
+  analysisId?: string;
   overallScore: number;
   scores: {
-    technicalSkills: number;
-    experience: number;
-    presentation: number;
-    education: number;
-    leadership: number;
+    /** 0–10 scale (derived from atsCompatibility.score / 10). Used by radar chart. */
+    atsCompatibility: number;
+    contentQuality: number;
+    impact: number;
+    readability: number;
   };
   experienceLevel:
     | "Entry-Level"
@@ -22,31 +23,82 @@ export interface AnalysisResult {
     | "Lead/Principal"
     | "Executive";
   yearsOfExperience: number;
-  strengthAreas: string[];
-  improvementAreas: string[];
-  missingSkills: string[];
-  redFlags: string[];
-  detectedSkills: {
-    technical: string[];
-    soft: string[];
+  metrics: {
+    wordCount: number;
+    pageCount: number;
+    bulletPointCount: number;
+    skillsCount: number;
+    uniqueSkillsCount: number;
+    experienceEntriesCount: number;
+    educationEntriesCount: number;
+    hasEmail: boolean;
+    hasPhone: boolean;
+    hasLinkedin: boolean;
+    hasPortfolio: boolean;
+    grammarIssuesCount: number;
+    spellingIssuesCount: number;
+    passiveVoiceCount: number;
+    measurableAchievementsCount: number;
+    actionVerbCount: number;
+    buzzwordCount: number;
+    sectionCompletenessScore: number;
   };
-  keyAchievements: string[];
-  recommendations: {
-    immediate: string[];
-    shortTerm: string[];
-    longTerm: string[];
+  parsedData: {
+    fullName: string | null;
+    email: string | null;
+    phone: string | null;
+    location: string | null;
+    technicalSkills: string[];
+    softSkills: string[];
+    jobTitles: string[];
+    education: Array<{
+      institution: string;
+      degree: string;
+      field: string;
+      year: string;
+    }>;
+    workExperiences: Array<{
+      company: string;
+      title: string;
+      startDate: string;
+      endDate: string;
+      description: string;
+    }>;
+    projects: Array<{
+      name: string;
+      description: string;
+      technologies: string[];
+    }>;
+    certifications: Array<{
+      name: string;
+      issuer: string;
+      year: string;
+    }>;
+  };
+  feedback: {
+    summary: string;
+    hiringRecommendation:
+      | "Strong Hire"
+      | "Hire"
+      | "Maybe"
+      | "No Hire"
+      | "Needs More Info";
+    strengths: string[];
+    weaknesses: string[];
+    improvementAreas: string[];
+    missingSkills: string[];
+    redFlags: string[];
+    suggestions: {
+      immediate: string[];
+      shortTerm: string[];
+      longTerm: string[];
+    };
   };
   atsCompatibility: {
+    /** 0–100 scale. Used by progress bar. scores.atsCompatibility = this / 10 */
     score: number;
     issues: string[];
   };
-  hiringRecommendation:
-    | "Strong Hire"
-    | "Hire"
-    | "Maybe"
-    | "No Hire"
-    | "Needs More Info";
-  summary: string;
   metadata?: {
     analyzedAt: string;
     analysisVersion: string;
@@ -118,28 +170,6 @@ export interface CareerMapResult {
   };
 }
 
-export interface RewriteVariation {
-  style: "Conservative" | "Balanced" | "Aggressive";
-  text: string;
-  changes: string[];
-  impact: "Low" | "Medium" | "High";
-}
-
-export interface SmartRewriteResult {
-  original: string;
-  variations: RewriteVariation[];
-  keywords_matched: string[];
-  ats_score: {
-    conservative: number;
-    balanced: number;
-    aggressive: number;
-  };
-  recommendation: string;
-  metadata?: {
-    rewrittenAt: string;
-  };
-}
-
 export interface TailorSection {
   name: string;
   priority: "High" | "Medium" | "Low";
@@ -158,9 +188,6 @@ export interface TailorResult {
     before_score: number;
     after_score: number;
   };
-  metadata: {
-    tailoredAt: string;
-  };
 }
 
 export interface AnalysisHistoryEntry {
@@ -174,8 +201,10 @@ export interface AnalysisHistoryEntry {
 export interface HistorySummary {
   total_analyses: number;
   average_overall_score: number;
-  average_education_score: number;
-  average_leadership_score: number;
+  average_ats_score: number;
+  average_content_quality_score: number;
+  average_impact_score: number;
+  average_readability_score: number;
   latest_analysis: Date | null;
   score_trend: {
     date: Date;
@@ -191,6 +220,7 @@ export interface SkillGapTrend {
 interface StoreState {
   resumeData: ResumeData | null;
   analysisResults: AnalysisResult | null;
+  analysisPhase: "idle" | "scoring" | "feedback" | "complete";
   jobMatchResults: JobMatchResult | null;
   analysisHistory: AnalysisHistoryEntry[];
   jobDescription: string;
@@ -198,6 +228,7 @@ interface StoreState {
   guestMessage: string | null;
   setResumeData: (data: ResumeData) => void;
   setAnalysisResults: (results: AnalysisResult) => void;
+  setAnalysisPhase: (phase: StoreState["analysisPhase"]) => void;
   setJobMatchResults: (results: JobMatchResult) => void;
   setJobDescription: (description: string) => void;
   setAnalysisHistory: (history: AnalysisHistoryEntry[]) => void;
@@ -210,6 +241,7 @@ interface StoreState {
 const useStore = create<StoreState>()((set) => ({
   resumeData: null,
   analysisResults: null,
+  analysisPhase: "idle",
   jobMatchResults: null,
   analysisHistory: [],
   jobDescription: "",
@@ -217,17 +249,19 @@ const useStore = create<StoreState>()((set) => ({
   guestMessage: null,
   setResumeData: (data) => set({ resumeData: data }),
   setAnalysisResults: (results) => set({ analysisResults: results }),
+  setAnalysisPhase: (phase) => set({ analysisPhase: phase }),
   setJobMatchResults: (results) => set({ jobMatchResults: results }),
   setJobDescription: (description) => set({ jobDescription: description }),
   setAnalysisHistory: (history) => set({ analysisHistory: history }),
   addAnalysisHistory: (entry) =>
     set((state) => ({
-      analysisHistory: [entry, ...state.analysisHistory], // Prepend new entry
+      analysisHistory: [entry, ...state.analysisHistory],
     })),
   clearCurrentAnalysis: () =>
     set({
       resumeData: null,
       analysisResults: null,
+      analysisPhase: "idle",
       jobMatchResults: null,
       jobDescription: "",
       guestMessage: null,

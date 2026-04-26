@@ -8,19 +8,18 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { AnalysisResult } from "../../store/useStore";
+import Card from "../ui/Card";
 
 interface AnalysisRadarChartProps {
   analysisResults: AnalysisResult;
 }
 
 const AnalysisRadarChart = ({ analysisResults }: AnalysisRadarChartProps) => {
-  // Transform analysis results into the format expected by Recharts
   const chartData = [
-    { subject: "Technical", score: analysisResults.scores.technicalSkills },
-    { subject: "Experience", score: analysisResults.scores.experience },
-    { subject: "Presentation", score: analysisResults.scores.presentation },
-    { subject: "Education", score: analysisResults.scores.education },
-    { subject: "Leadership", score: analysisResults.scores.leadership },
+    { subject: "ATS Compatibility", score: analysisResults.scores.atsCompatibility },
+    { subject: "Content Quality", score: analysisResults.scores.contentQuality },
+    { subject: "Impact", score: analysisResults.scores.impact },
+    { subject: "Readability", score: analysisResults.scores.readability },
   ];
 
   return (
@@ -28,29 +27,31 @@ const AnalysisRadarChart = ({ analysisResults }: AnalysisRadarChartProps) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5, delay: 0.2 }}
-      className="w-full h-72 md:h-80"
     >
-      <ResponsiveContainer width="100%" height="100%">
-        <RadarChart cx="50%" cy="50%" outerRadius="80%" data={chartData}>
-          <PolarGrid stroke="#e2e8f0" />
-          <PolarAngleAxis
-            dataKey="subject"
-            tick={{ fill: "#4a5568", fontSize: 14 }}
-          />
-          <PolarRadiusAxis
-            angle={30}
-            domain={[0, 10]}
-            tick={{ fill: "#4a5568" }}
-          />
-          <Radar
-            name="Resume Score"
-            dataKey="score"
-            stroke="#3b82f6"
-            fill="#3b82f6"
-            fillOpacity={0.6}
-          />
-        </RadarChart>
-      </ResponsiveContainer>
+      <Card>
+        <ResponsiveContainer width="100%" height={320}>
+          <RadarChart cx="50%" cy="50%" outerRadius="75%" data={chartData}>
+            <PolarGrid stroke="#d6d3d1" />
+            <PolarAngleAxis
+              dataKey="subject"
+              tick={{ fill: "#57534e", fontSize: 13 }}
+            />
+            <PolarRadiusAxis
+              angle={30}
+              domain={[0, 10]}
+              tick={{ fill: "#a8a29e" }}
+            />
+            <Radar
+              name="Resume Score"
+              dataKey="score"
+              stroke="#d97706"
+              fill="#fde68a"
+              fillOpacity={0.3}
+              strokeWidth={2}
+            />
+          </RadarChart>
+        </ResponsiveContainer>
+      </Card>
     </motion.div>
   );
 };

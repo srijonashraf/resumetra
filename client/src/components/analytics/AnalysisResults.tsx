@@ -1,17 +1,12 @@
 import { motion } from "framer-motion";
 import { AnalysisResult } from "../../store/useStore";
 import AnalysisRadarChart from "./AnalysisRadarChart";
+import ScoreCard from "../ui/ScoreCard";
+import Card from "../ui/Card";
 import {
   CheckCircleIcon,
   XCircleIcon,
-  StarIcon,
   ExclamationTriangleIcon,
-  SparklesIcon,
-  BriefcaseIcon,
-  ChartBarIcon,
-  TrophyIcon,
-  ShieldCheckIcon,
-  ClockIcon,
 } from "@heroicons/react/24/outline";
 
 interface AnalysisResultsProps {
@@ -19,36 +14,29 @@ interface AnalysisResultsProps {
 }
 
 const AnalysisResults = ({ analysisResults }: AnalysisResultsProps) => {
-  const getScoreColor = (score: number, maxScore: number = 10) => {
-    const percentage = (score / maxScore) * 100;
-    if (percentage >= 80) return "text-green-400";
-    if (percentage >= 60) return "text-yellow-400";
-    if (percentage >= 40) return "text-orange-400";
-    return "text-red-400";
+  const hiringRec = analysisResults.feedback?.hiringRecommendation;
+
+  const summary = analysisResults.feedback?.summary;
+
+  const strengths = analysisResults.feedback?.strengths ?? [];
+
+  const improvementAreas = analysisResults.feedback?.improvementAreas ?? [];
+
+  const missingSkills = analysisResults.feedback?.missingSkills ?? [];
+
+  const redFlags = analysisResults.feedback?.redFlags ?? [];
+
+  const suggestions = analysisResults.feedback?.suggestions ?? {
+    immediate: [],
+    shortTerm: [],
+    longTerm: [],
   };
 
-  const getScoreBgColor = (score: number, maxScore: number = 10) => {
-    const percentage = (score / maxScore) * 100;
-    if (percentage >= 80) return "bg-green-500";
-    if (percentage >= 60) return "bg-yellow-500";
-    if (percentage >= 40) return "bg-orange-500";
-    return "bg-red-500";
-  };
+  const technicalSkills = analysisResults.parsedData?.technicalSkills ?? [];
 
-  const getRecommendationColor = (recommendation: string) => {
-    switch (recommendation) {
-      case "Strong Hire":
-        return "text-green-400 bg-green-400/10 border-green-400/20";
-      case "Hire":
-        return "text-blue-400 bg-blue-400/10 border-blue-400/20";
-      case "Maybe":
-        return "text-yellow-400 bg-yellow-400/10 border-yellow-400/20";
-      case "No Hire":
-        return "text-red-400 bg-red-400/10 border-red-400/20";
-      default:
-        return "text-slate-400 bg-slate-400/10 border-slate-400/20";
-    }
-  };
+  const softSkills = analysisResults.parsedData?.softSkills ?? [];
+
+  const metrics = analysisResults.metrics;
 
   return (
     <motion.div
@@ -59,169 +47,201 @@ const AnalysisResults = ({ analysisResults }: AnalysisResultsProps) => {
     >
       {/* Header Section */}
       <div className="text-center">
-        <h2 className="text-3xl font-bold text-white mb-2">
+        <h2 className="text-3xl font-bold text-stone-900 mb-2">
           Resume Analysis Results
         </h2>
-        <p className="text-slate-400 max-w-2xl mx-auto">
+        <p className="text-stone-500 max-w-2xl mx-auto">
           Comprehensive analysis of your resume with actionable insights and
           recommendations
         </p>
       </div>
 
-      {/* Overall Score & Recommendation */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-blue-500/10 rounded-lg">
-              <StarIcon className="h-6 w-6 text-blue-400" />
+      {/* Overall Score & Hiring Recommendation */}
+      <Card overflow padding="none">
+        <div className="grid grid-cols-1 md:grid-cols-2">
+          {/* Left: Score */}
+          <div className="flex flex-col items-center justify-center p-8 border-b md:border-b-0 md:border-r border-stone-200">
+            <ScoreCard
+              title="Overall Score"
+              score={analysisResults.overallScore}
+              maxScore={10}
+              size="lg"
+            />
+            <div className="flex flex-wrap gap-2 mt-4 justify-center">
+              <span className="bg-stone-100 text-stone-700 rounded-full px-3 py-1 text-sm font-medium">
+                {analysisResults.experienceLevel}
+              </span>
+              <span className="bg-stone-100 text-stone-700 rounded-full px-3 py-1 text-sm font-medium">
+                {analysisResults.yearsOfExperience}+ years
+              </span>
             </div>
-            <h3 className="text-xl font-semibold text-white">Overall Score</h3>
           </div>
-          <div className="text-center">
-            <div
-              className={`text-6xl font-bold mb-3 ${getScoreColor(
-                analysisResults.overallScore,
-                10
-              )}`}
-            >
-              {analysisResults.overallScore}/10
-            </div>
-            <div className="w-full bg-slate-700 rounded-full h-4 mb-2">
-              <div
-                className={`h-4 rounded-full transition-all ${getScoreBgColor(
-                  analysisResults.overallScore,
-                  10
-                )}`}
-                style={{
-                  width: `${(analysisResults.overallScore / 10) * 100}%`,
-                }}
-              ></div>
-            </div>
-            <p className="text-slate-400 text-sm">
-              {analysisResults.overallScore >= 8
-                ? "Excellent"
-                : analysisResults.overallScore >= 6
-                ? "Good"
-                : analysisResults.overallScore >= 4
-                ? "Fair"
-                : "Needs Improvement"}
-            </p>
-          </div>
-        </div>
 
-        <div className="card p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-purple-500/10 rounded-lg">
-              <TrophyIcon className="h-6 w-6 text-purple-400" />
-            </div>
-            <h3 className="text-xl font-semibold text-white">
+          {/* Right: Hiring Recommendation */}
+          <div className="flex flex-col items-center justify-center p-8 bg-stone-50/50">
+            <p className="text-sm text-stone-500 mb-3 font-medium uppercase tracking-wide">
               Hiring Recommendation
-            </h3>
-          </div>
-          <div className="text-center">
+            </p>
             <div
-              className={`inline-flex items-center px-4 py-3 rounded-xl border text-lg font-medium ${getRecommendationColor(
-                analysisResults.hiringRecommendation
-              )}`}
+              className={`text-3xl md:text-4xl font-bold font-heading mb-2 ${
+                hiringRec === "Strong Hire" || hiringRec === "Hire"
+                  ? "text-emerald-600"
+                  : hiringRec === "Maybe"
+                    ? "text-amber-600"
+                    : hiringRec === "No Hire"
+                      ? "text-red-600"
+                      : "text-blue-600"
+              }`}
             >
-              {analysisResults.hiringRecommendation}
+              {hiringRec}
             </div>
-            <p className="text-slate-400 text-sm mt-3">
-              Based on overall resume quality and industry standards
-            </p>
+            {(() => {
+              const verdict =
+                hiringRec === "Strong Hire" || hiringRec === "Hire"
+                  ? "Your resume makes a strong impression on recruiters."
+                  : hiringRec === "Maybe"
+                    ? "Your resume has potential but needs targeted improvements."
+                    : hiringRec === "No Hire"
+                      ? "Significant improvements needed before applying."
+                      : "More information needed for a complete assessment.";
+              return (
+                <p className="text-sm text-stone-500 text-center max-w-xs">
+                  {verdict}
+                </p>
+              );
+            })()}
           </div>
         </div>
+      </Card>
+
+      {/* 4 Score Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <ScoreCard
+          title="ATS Compatibility"
+          score={analysisResults.scores.atsCompatibility}
+          maxScore={10}
+        />
+        <ScoreCard
+          title="Content Quality"
+          score={analysisResults.scores.contentQuality}
+          maxScore={10}
+        />
+        <ScoreCard
+          title="Impact"
+          score={analysisResults.scores.impact}
+          maxScore={10}
+        />
+        <ScoreCard
+          title="Readability"
+          score={analysisResults.scores.readability}
+          maxScore={10}
+        />
       </div>
 
-      {/* Experience Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="card p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-green-500/10 rounded-lg">
-              <BriefcaseIcon className="h-6 w-6 text-green-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-white">
-              Experience Level
-            </h3>
-          </div>
-          <div className="text-center">
-            <div className="text-3xl font-bold text-green-400 mb-2">
-              {analysisResults.experienceLevel}
-            </div>
-            <p className="text-slate-400 text-sm">
-              Career stage based on your resume content
-            </p>
-          </div>
-        </div>
+      {/* Radar Chart */}
+      <AnalysisRadarChart analysisResults={analysisResults} />
 
-        <div className="card p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-yellow-500/10 rounded-lg">
-              <ClockIcon className="h-6 w-6 text-yellow-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-white">
-              Years of Experience
-            </h3>
+      {/* Resume Metrics Section */}
+      {metrics && (
+        <Card>
+          <h3 className="text-xl font-semibold text-stone-900 mb-4">
+            Resume Metrics
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: "Words", value: metrics.wordCount },
+              { label: "Pages (est.)", value: metrics.pageCount },
+              { label: "Bullet Points", value: metrics.bulletPointCount },
+              { label: "Skills Found", value: metrics.skillsCount },
+              { label: "Grammar Issues", value: metrics.grammarIssuesCount },
+              { label: "Passive Voice", value: metrics.passiveVoiceCount },
+              {
+                label: "Achievements w/ Metrics",
+                value: metrics.measurableAchievementsCount,
+              },
+              {
+                label: "Section Score",
+                value: `${metrics.sectionCompletenessScore}%`,
+              },
+            ].map((metric) => (
+              <div
+                key={metric.label}
+                className="bg-stone-50 rounded-xl p-3 text-center"
+              >
+                <p className="text-xs text-stone-500 uppercase tracking-wide">
+                  {metric.label}
+                </p>
+                <p className="text-lg font-semibold text-stone-900">
+                  {metric.value}
+                </p>
+              </div>
+            ))}
           </div>
-          <div className="text-center">
-            <div className="text-3xl font-bold text-yellow-400 mb-2">
-              {analysisResults.yearsOfExperience}+
-            </div>
-            <p className="text-slate-400 text-sm">
-              Total professional experience detected
+
+          {/* Contact Info Checklist */}
+          <div className="mt-4 pt-4 border-t border-stone-200">
+            <p className="text-sm font-medium text-stone-600 mb-2">
+              Contact Info
             </p>
+            <div className="flex flex-wrap gap-3">
+              {[
+                { label: "Email", found: metrics.hasEmail },
+                { label: "Phone", found: metrics.hasPhone },
+                { label: "LinkedIn", found: metrics.hasLinkedin },
+                { label: "Portfolio", found: metrics.hasPortfolio },
+              ].map((item) => (
+                <span
+                  key={item.label}
+                  className="inline-flex items-center gap-1.5 text-sm text-stone-600"
+                >
+                  {item.found ? (
+                    <CheckCircleIcon className="h-4 w-4 text-emerald-600" />
+                  ) : (
+                    <XCircleIcon className="h-4 w-4 text-stone-300" />
+                  )}
+                  {item.label}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
-      </div>
+        </Card>
+      )}
 
       {/* ATS Compatibility */}
-      <div className="card p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 bg-indigo-500/10 rounded-lg">
-            <ShieldCheckIcon className="h-6 w-6 text-indigo-400" />
-          </div>
-          <h3 className="text-lg font-semibold text-white">
+      <Card>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-semibold text-stone-900">
             ATS Compatibility
           </h3>
-          <div className="text-right">
-            <span
-              className={`text-2xl font-bold ${getScoreColor(
-                analysisResults.atsCompatibility.score,
-                100
-              )}`}
-            >
-              {analysisResults.atsCompatibility.score}/100
-            </span>
-          </div>
+          <span className="text-2xl font-bold text-stone-900">
+            {analysisResults.atsCompatibility.score}/100
+          </span>
         </div>
         <div className="space-y-3">
-          <div className="w-full bg-slate-700 rounded-full h-2">
+          <div className="w-full bg-stone-200 rounded-full h-2">
             <div
-              className={`h-2 rounded-full transition-all ${getScoreBgColor(
-                analysisResults.atsCompatibility.score,
-                100
-              )}`}
+              className="h-2 rounded-full bg-amber-600 transition-all"
               style={{ width: `${analysisResults.atsCompatibility.score}%` }}
             ></div>
           </div>
           {(() => {
             const realIssues = analysisResults.atsCompatibility.issues.filter(
               (issue) =>
-                !issue.toLowerCase().includes("none") && issue.trim() !== ""
+                !issue.toLowerCase().includes("none") && issue.trim() !== "",
             );
             if (realIssues.length > 0) {
               return (
                 <div>
-                  <h4 className="text-sm font-medium text-orange-400 mb-2">
+                  <h4 className="text-sm font-medium text-amber-700 mb-2">
                     Issues to Fix:
                   </h4>
                   <ul className="space-y-1">
                     {realIssues.map((issue, index) => (
                       <li
                         key={index}
-                        className="flex items-start text-sm text-orange-200"
+                        className="flex items-start text-sm text-stone-700"
                       >
-                        <ExclamationTriangleIcon className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
+                        <ExclamationTriangleIcon className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0 text-amber-500" />
                         {issue}
                       </li>
                     ))}
@@ -230,177 +250,141 @@ const AnalysisResults = ({ analysisResults }: AnalysisResultsProps) => {
               );
             }
             return (
-              <div className="flex items-center text-sm text-green-400">
+              <div className="flex items-center text-sm text-emerald-600">
                 <CheckCircleIcon className="h-4 w-4 mr-2 flex-shrink-0" />
-                No ATS issues detected - your resume is well-formatted!
+                No ATS issues detected — your resume is well-formatted!
               </div>
             );
           })()}
         </div>
-      </div>
+      </Card>
 
       {/* Summary */}
-      {analysisResults.summary && (
-        <div className="card p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-blue-500/10 rounded-lg">
-              <ChartBarIcon className="h-6 w-6 text-blue-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-white">
-              Analysis Summary
-            </h3>
-          </div>
-          <p className="text-slate-300 leading-relaxed">
-            {analysisResults.summary}
-          </p>
+      {summary && (
+        <Card>
+          <h3 className="text-xl font-semibold text-stone-900 mb-3">
+            Analysis Summary
+          </h3>
+          <p className="text-stone-600 leading-relaxed">{summary}</p>
+        </Card>
+      )}
+
+      {/* Strengths */}
+      {strengths.length > 0 && (
+        <div className="mt-8">
+          <h3 className="text-xl font-semibold text-stone-900 mb-4">
+            Strength Areas
+          </h3>
+          <Card accent="border-l-4 border-l-emerald-500">
+            <ul className="space-y-3">
+              {strengths.map((strength, index) => (
+                <motion.li
+                  key={index}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.2, delay: index * 0.1 }}
+                  className="flex items-start"
+                >
+                  <CheckCircleIcon className="h-5 w-5 text-emerald-500 mr-3 mt-0.5 flex-shrink-0" />
+                  <span className="text-stone-700 text-sm leading-relaxed">
+                    {strength}
+                  </span>
+                </motion.li>
+              ))}
+            </ul>
+          </Card>
         </div>
       )}
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Left Column */}
-        <div className="space-y-6">
-          {/* Radar Chart */}
-          <div className="bg-slate-950/50 rounded-xl p-4 border border-slate-800">
-            <h3 className="text-lg font-semibold text-slate-300 mb-4 text-center">
-              Score Breakdown
-            </h3>
-            <AnalysisRadarChart analysisResults={analysisResults} />
-          </div>
-
-          {/* Strengths */}
-          {analysisResults.strengthAreas.length > 0 && (
-            <div className="card p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-green-500/10 rounded-lg">
-                  <CheckCircleIcon className="h-6 w-6 text-green-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-white">
-                  Strength Areas
-                </h3>
-              </div>
-              <ul className="space-y-3">
-                {analysisResults.strengthAreas.map((strength, index) => (
-                  <motion.li
-                    key={index}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.2, delay: index * 0.1 }}
-                    className="flex items-start p-3 bg-green-900/20 border border-green-800/30 rounded-lg"
-                  >
-                    <CheckCircleIcon className="h-5 w-5 text-green-400 mr-3 mt-0.5 flex-shrink-0" />
-                    <span className="text-green-200 text-sm leading-relaxed">
-                      {strength}
-                    </span>
-                  </motion.li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Red Flags */}
-          {analysisResults.redFlags.length > 0 && (
-            <div className="card p-6 border-red-900/50">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-red-500/10 rounded-lg">
-                  <ExclamationTriangleIcon className="h-6 w-6 text-red-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-red-400">
-                  Red Flags
-                </h3>
-              </div>
-              <ul className="space-y-3">
-                {analysisResults.redFlags.map((flag, index) => (
-                  <motion.li
-                    key={index}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.2, delay: index * 0.1 }}
-                    className="flex items-start p-3 bg-red-900/20 border border-red-800/30 rounded-lg"
-                  >
-                    <ExclamationTriangleIcon className="h-5 w-5 text-red-400 mr-3 mt-0.5 flex-shrink-0" />
-                    <span className="text-red-200 text-sm leading-relaxed">
-                      {flag}
-                    </span>
-                  </motion.li>
-                ))}
-              </ul>
-            </div>
-          )}
+      {/* Weaknesses / Improvement Areas */}
+      {improvementAreas.length > 0 && (
+        <div className="mt-8">
+          <h3 className="text-xl font-semibold text-stone-900 mb-4">
+            Improvement Areas
+          </h3>
+          <Card accent="border-l-4 border-l-amber-500">
+            <ul className="space-y-3">
+              {improvementAreas.map((area, index) => (
+                <motion.li
+                  key={index}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.2, delay: index * 0.1 }}
+                  className="flex items-start"
+                >
+                  <ExclamationTriangleIcon className="h-5 w-5 text-amber-500 mr-3 mt-0.5 flex-shrink-0" />
+                  <span className="text-stone-700 text-sm leading-relaxed">
+                    {area}
+                  </span>
+                </motion.li>
+              ))}
+            </ul>
+          </Card>
         </div>
+      )}
 
-        {/* Right Column */}
-        <div className="space-y-6">
-          {/* Key Achievements */}
-          {analysisResults.keyAchievements.length > 0 && (
-            <div className="card p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-yellow-500/10 rounded-lg">
-                  <TrophyIcon className="h-6 w-6 text-yellow-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-white">
-                  Key Achievements
-                </h3>
-              </div>
-              <ul className="space-y-3">
-                {analysisResults.keyAchievements.map((achievement, index) => (
-                  <motion.li
-                    key={index}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.2, delay: index * 0.1 }}
-                    className="flex items-start p-3 bg-yellow-900/20 border border-yellow-800/30 rounded-lg"
-                  >
-                    <TrophyIcon className="h-5 w-5 text-yellow-400 mr-3 mt-0.5 flex-shrink-0" />
-                    <span className="text-yellow-200 text-sm leading-relaxed">
-                      {achievement}
-                    </span>
-                  </motion.li>
-                ))}
-              </ul>
-            </div>
-          )}
+      {/* Red Flags */}
+      {redFlags.length > 0 && (
+        <div className="mt-8">
+          <h3 className="text-xl font-semibold text-red-700 mb-4">
+            Red Flags ({redFlags.length})
+          </h3>
+          <Card accent="border-l-4 border-l-red-500">
+            <ul className="space-y-3">
+              {redFlags.map((flag, index) => (
+                <motion.li
+                  key={index}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.2, delay: index * 0.1 }}
+                  className="flex items-start"
+                >
+                  <ExclamationTriangleIcon className="h-5 w-5 text-red-500 mr-3 mt-0.5 flex-shrink-0" />
+                  <span className="text-stone-700 text-sm leading-relaxed">
+                    {flag}
+                  </span>
+                </motion.li>
+              ))}
+            </ul>
+          </Card>
+        </div>
+      )}
 
-          {/* Detected Skills */}
-          <div className="card p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-blue-500/10 rounded-lg">
-                <SparklesIcon className="h-6 w-6 text-blue-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-white">
-                Detected Skills
-              </h3>
-            </div>
-            <div className="space-y-4">
-              {analysisResults.detectedSkills.technical.length > 0 && (
+      {/* Detected Skills */}
+      {(technicalSkills.length > 0 || softSkills.length > 0) && (
+        <div className="mt-8">
+          <h3 className="text-xl font-semibold text-stone-900 mb-4">
+            Detected Skills
+          </h3>
+          <Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {technicalSkills.length > 0 && (
                 <div>
-                  <h4 className="text-sm font-medium text-blue-400 mb-2">
+                  <h4 className="text-sm font-medium text-stone-500 mb-2">
                     Technical Skills
                   </h4>
                   <div className="flex flex-wrap gap-2">
-                    {analysisResults.detectedSkills.technical.map(
-                      (skill, index) => (
-                        <span
-                          key={index}
-                          className="px-3 py-1 bg-blue-900/20 text-blue-200 text-xs rounded-full border border-blue-800/30"
-                        >
-                          {skill}
-                        </span>
-                      )
-                    )}
+                    {technicalSkills.map((skill, index) => (
+                      <span
+                        key={index}
+                        className="bg-stone-100 text-stone-700 rounded-full px-3 py-1 text-sm inline-flex items-center gap-1"
+                      >
+                        {skill}
+                      </span>
+                    ))}
                   </div>
                 </div>
               )}
-              {analysisResults.detectedSkills.soft.length > 0 && (
+              {softSkills.length > 0 && (
                 <div>
-                  <h4 className="text-sm font-medium text-green-400 mb-2">
+                  <h4 className="text-sm font-medium text-stone-500 mb-2">
                     Soft Skills
                   </h4>
                   <div className="flex flex-wrap gap-2">
-                    {analysisResults.detectedSkills.soft.map((skill, index) => (
+                    {softSkills.map((skill, index) => (
                       <span
                         key={index}
-                        className="px-3 py-1 bg-green-900/20 text-green-200 text-xs rounded-full border border-green-800/30"
+                        className="bg-stone-100 text-stone-700 rounded-full px-3 py-1 text-sm inline-flex items-center gap-1"
                       >
                         {skill}
                       </span>
@@ -409,139 +393,95 @@ const AnalysisResults = ({ analysisResults }: AnalysisResultsProps) => {
                 </div>
               )}
             </div>
-          </div>
+          </Card>
+        </div>
+      )}
 
-          {/* Improvement Areas */}
-          {analysisResults.improvementAreas.length > 0 && (
-            <div className="card p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-orange-500/10 rounded-lg">
-                  <ExclamationTriangleIcon className="h-6 w-6 text-orange-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-white">
-                  Improvement Areas
-                </h3>
-              </div>
-              <ul className="space-y-3">
-                {analysisResults.improvementAreas.map((area, index) => (
-                  <motion.li
-                    key={index}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.2, delay: index * 0.1 }}
-                    className="flex items-start p-3 bg-orange-900/20 border border-orange-800/30 rounded-lg"
-                  >
-                    <ExclamationTriangleIcon className="h-5 w-5 text-orange-400 mr-3 mt-0.5 flex-shrink-0" />
-                    <span className="text-orange-200 text-sm leading-relaxed">
-                      {area}
-                    </span>
-                  </motion.li>
-                ))}
-              </ul>
-            </div>
-          )}
+      {/* Missing Skills */}
+      {missingSkills.length > 0 && (
+        <div className="mt-8">
+          <h3 className="text-xl font-semibold text-stone-900 mb-4">
+            Missing Skills
+          </h3>
+          <Card accent="border-l-4 border-l-amber-500">
+            <ul className="space-y-2">
+              {missingSkills.map((skill, index) => (
+                <motion.li
+                  key={index}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.2, delay: index * 0.1 }}
+                  className="flex items-center"
+                >
+                  <XCircleIcon className="h-4 w-4 text-stone-400 mr-2 flex-shrink-0" />
+                  <span className="text-stone-700 text-sm">{skill}</span>
+                </motion.li>
+              ))}
+            </ul>
+          </Card>
+        </div>
+      )}
 
-          {/* Missing Skills */}
-          {analysisResults.missingSkills.length > 0 && (
-            <div className="card p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-red-500/10 rounded-lg">
-                  <XCircleIcon className="h-6 w-6 text-red-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-white">
-                  Missing Skills
-                </h3>
-              </div>
+      {/* Suggestions / Recommendations */}
+      <div className="mt-8">
+        <h3 className="text-xl font-semibold text-stone-900 mb-4">
+          Recommendations
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {suggestions.immediate.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-5">
+              <h4 className="text-sm font-semibold text-red-700 mb-3">
+                Immediate Actions
+              </h4>
               <ul className="space-y-2">
-                {analysisResults.missingSkills.map((skill, index) => (
-                  <motion.li
+                {suggestions.immediate.map((rec, index) => (
+                  <li
                     key={index}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.2, delay: index * 0.1 }}
-                    className="flex items-center p-2 bg-red-900/10 rounded-lg border border-red-900/20"
+                    className="flex items-start text-sm text-stone-700"
                   >
-                    <XCircleIcon className="h-5 w-5 text-red-400 mr-2 flex-shrink-0" />
-                    <span className="text-red-200 text-sm">{skill}</span>
-                  </motion.li>
+                    <CheckCircleIcon className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0 text-red-500" />
+                    {rec}
+                  </li>
                 ))}
               </ul>
             </div>
           )}
-
-          {/* Recommendations */}
-          <div className="card p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-purple-500/10 rounded-lg">
-                <SparklesIcon className="h-6 w-6 text-purple-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-white">
-                Recommendations
-              </h3>
+          {suggestions.shortTerm.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+              <h4 className="text-sm font-semibold text-amber-700 mb-3">
+                Short-term Goals
+              </h4>
+              <ul className="space-y-2">
+                {suggestions.shortTerm.map((rec, index) => (
+                  <li
+                    key={index}
+                    className="flex items-start text-sm text-stone-700"
+                  >
+                    <CheckCircleIcon className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0 text-amber-500" />
+                    {rec}
+                  </li>
+                ))}
+              </ul>
             </div>
-            <div className="space-y-4">
-              {analysisResults.recommendations.immediate.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-medium text-red-400 mb-2">
-                    Immediate Actions
-                  </h4>
-                  <ul className="space-y-2">
-                    {analysisResults.recommendations.immediate.map(
-                      (rec, index) => (
-                        <li
-                          key={index}
-                          className="flex items-start text-sm text-red-200"
-                        >
-                          <CheckCircleIcon className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
-                          {rec}
-                        </li>
-                      )
-                    )}
-                  </ul>
-                </div>
-              )}
-              {analysisResults.recommendations.shortTerm.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-medium text-yellow-400 mb-2">
-                    Short-term Goals
-                  </h4>
-                  <ul className="space-y-2">
-                    {analysisResults.recommendations.shortTerm.map(
-                      (rec, index) => (
-                        <li
-                          key={index}
-                          className="flex items-start text-sm text-yellow-200"
-                        >
-                          <CheckCircleIcon className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
-                          {rec}
-                        </li>
-                      )
-                    )}
-                  </ul>
-                </div>
-              )}
-              {analysisResults.recommendations.longTerm.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-medium text-green-400 mb-2">
-                    Long-term Goals
-                  </h4>
-                  <ul className="space-y-2">
-                    {analysisResults.recommendations.longTerm.map(
-                      (rec, index) => (
-                        <li
-                          key={index}
-                          className="flex items-start text-sm text-green-200"
-                        >
-                          <CheckCircleIcon className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
-                          {rec}
-                        </li>
-                      )
-                    )}
-                  </ul>
-                </div>
-              )}
+          )}
+          {suggestions.longTerm.length > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5">
+              <h4 className="text-sm font-semibold text-blue-700 mb-3">
+                Long-term Goals
+              </h4>
+              <ul className="space-y-2">
+                {suggestions.longTerm.map((rec, index) => (
+                  <li
+                    key={index}
+                    className="flex items-start text-sm text-stone-700"
+                  >
+                    <CheckCircleIcon className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0 text-blue-500" />
+                    {rec}
+                  </li>
+                ))}
+              </ul>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </motion.div>

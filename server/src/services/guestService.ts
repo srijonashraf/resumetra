@@ -1,8 +1,10 @@
+import { Request } from "express";
 import pool from "../config/database";
+import { DatabaseError } from "../errors";
 
 // ==================== TYPE DEFINITIONS ====================
 
-export interface GuestAnalytics {
+interface GuestAnalytics {
   id: string;
   ip_address: string;
   user_agent?: string;
@@ -19,94 +21,36 @@ export interface GuestUsageResult {
   analysisCount?: number;
 }
 
+// ==================== CONSTANTS ====================
+const GUEST_ANALYSIS_LIMIT = parseInt(
+  process.env.GUEST_ANALYSIS_LIMIT || "1",
+  10,
+);
+
 // ==================== UTILITY FUNCTIONS ====================
 
 /**
  * Get client IP address from request
  */
-export const getClientIP = (req: any): string => {
+const getClientIP = (req: Request): string => {
   // Only trust x-forwarded-for if app is behind a proxy
   if (process.env.TRUST_PROXY === "true") {
     const forwarded = req.headers["x-forwarded-for"];
-    if (forwarded) return forwarded.split(",")[0].trim();
+    const forwardedValue = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+    if (forwardedValue) return forwardedValue.split(",")[0].trim();
   }
-  return req.ip || req.connection?.remoteAddress || "127.0.0.1";
+  return req.ip || req.socket?.remoteAddress || "";
 };
 
 /**
  * Get user agent from request
  */
-export const getUserAgent = (req: any): string | undefined => {
-  return req.headers["user-agent"];
-};
-
-// ==================== GUEST USAGE MANAGEMENT ====================
-
-/**
- * Check if guest user is allowed to analyze resume
- */
-export const checkGuestUsage = async (req: any): Promise<GuestUsageResult> => {
-  const ipAddress = getClientIP(req);
-  const userAgent = getUserAgent(req);
-
-  try {
-    // Check if guest has already used the service
-    const existingGuestQuery = `
-      SELECT id, analysis_count, last_analysis_at
-      FROM guest_usage
-      WHERE ip_address = $1
-      ORDER BY last_analysis_at DESC
-      LIMIT 1
-    `;
-
-    const result = await pool.query(existingGuestQuery, [ipAddress]);
-
-    if (result.rows.length > 0) {
-      const guest = result.rows[0];
-
-      // Check if guest has reached the limit (1 analysis)
-      if (guest.analysis_count >= 1) {
-        return {
-          allowed: false,
-          message:
-            "You've reached your free resume analysis limit. Please login to analyze more resumes.",
-          analysisCount: guest.analysis_count,
-        };
-      }
-
-      // Increment usage count
-      await incrementGuestUsage(guest.id);
-      return {
-        allowed: true,
-        guestId: guest.id,
-        analysisCount: guest.analysis_count + 1,
-      };
-    }
-
-    // New guest user - create entry
-    const guestId = `guest_${Date.now()}_${Math.random()
-      .toString(36)
-      .substring(2, 11)}`;
-
-    await createGuestEntry(guestId, ipAddress, userAgent);
-    return {
-      allowed: true,
-      guestId: guestId,
-      analysisCount: 1,
-    };
-  } catch (error) {
-    console.error("Error checking guest usage:", error);
-    // In case of error, allow the analysis but log the issue
-    return {
-      allowed: false,
-      message: "Unable to verify guest usage. Please try again or login.",
-    };
-  }
+const getUserAgent = (req: Request): string => {
+  return req.headers["user-agent"] || "Unknown";
 };
 
 // ==================== PRIVATE HELPERS ====================
 
-// ==================== PRIVATE HELPERS ====================
 const createGuestEntry = async (
   guestId: string,
   ipAddress: string,
@@ -114,15 +58,12 @@ const createGuestEntry = async (
 ): Promise<void> => {
   const query = `
     INSERT INTO guest_usage (id, ip_address, user_agent, analysis_count)
-    VALUES ($1, $2, $3, 1)
+    VALUES ($1, $2, $3, $4)
   `;
 
-  await pool.query(query, [guestId, ipAddress, userAgent]);
+  await pool.query(query, [guestId, ipAddress, userAgent, 1]);
 };
 
-/**
- * Increment guest usage count
- */
 const incrementGuestUsage = async (guestId: string): Promise<void> => {
   const query = `
     UPDATE guest_usage
@@ -134,43 +75,60 @@ const incrementGuestUsage = async (guestId: string): Promise<void> => {
   await pool.query(query, [guestId]);
 };
 
-// ==================== ANALYTICS & MAINTENANCE ====================
-
-/**
- * Get guest analytics by ID
- */
-export const getGuestById = async (
-  guestId: string,
-): Promise<GuestAnalytics | null> => {
-  const query = `
-    SELECT id, ip_address, user_agent, analysis_count,
-           last_analysis_at, created_at, updated_at
-    FROM guest_usage
-    WHERE id = $1
-  `;
-
-  try {
-    const result = await pool.query(query, [guestId]);
-    return result.rows[0] || null;
-  } catch (error) {
-    console.error("Error fetching guest by ID:", error);
-    throw new Error("Failed to fetch guest data");
-  }
+const generateGuestId = (): string => {
+  return `guest_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 };
 
+// ==================== GUEST USAGE MANAGEMENT ====================
+
 /**
- * Clean up old guest entries (older than 30 days)
+ * Check if guest user is allowed to analyze resume
  */
-export const cleanupOldGuestEntries = async (): Promise<void> => {
-  const query = `
-    DELETE FROM guest_usage
-    WHERE last_analysis_at < NOW() - INTERVAL '30 days'
-  `;
+export const checkGuestUsage = async (
+  req: Request,
+): Promise<GuestUsageResult> => {
+  const ipAddress = getClientIP(req);
+  const userAgent = getUserAgent(req);
 
   try {
-    const result = await pool.query(query);
-    console.log(`Cleaned up ${result.rowCount} old guest entries`);
+    const existingGuestQuery = `
+      SELECT id, analysis_count, last_analysis_at
+      FROM guest_usage
+      WHERE ip_address = $1
+      ORDER BY last_analysis_at DESC
+      LIMIT 1
+    `;
+
+    const result = await pool.query(existingGuestQuery, [ipAddress]);
+    const guest = result.rows[0];
+
+    if (guest) {
+      if (guest.analysis_count >= GUEST_ANALYSIS_LIMIT) {
+        return {
+          allowed: false,
+          message:
+            "You've reached your free resume analysis limit. Please login to analyze more resumes.",
+          analysisCount: guest.analysis_count,
+        };
+      }
+
+      await incrementGuestUsage(guest.id);
+      return {
+        allowed: true,
+        guestId: guest.id,
+        analysisCount: guest.analysis_count + 1,
+      };
+    }
+
+    const newGuestId = generateGuestId();
+    await createGuestEntry(newGuestId, ipAddress, userAgent);
+    return {
+      allowed: true,
+      guestId: newGuestId,
+      analysisCount: 1,
+    };
   } catch (error) {
-    console.error("Error cleaning up old guest entries:", error);
+    console.error("Error checking guest usage:", error);
+    throw new DatabaseError("Failed to verify guest usage", { cause: error });
   }
 };

@@ -1,4 +1,5 @@
 import pool from "../config/database";
+import { DatabaseError } from "../errors";
 
 /**
  * User record as stored in the `users` table.
@@ -45,14 +46,14 @@ export const findUserById = async (id: string): Promise<User | null> => {
     return result.rows[0] || null;
   } catch (error) {
     console.error("Error fetching user by id:", error);
-    throw new Error("Failed to fetch user");
+    throw new DatabaseError("Failed to fetch user", { cause: error });
   }
 };
 
 /**
  * Look up a user by Google `sub` (stable Google account identifier).
  */
-export const findUserByGoogleSub = async (
+const findUserByGoogleSub = async (
   googleSub: string,
 ): Promise<User | null> => {
   const query = `
@@ -73,7 +74,7 @@ export const findUserByGoogleSub = async (
     return result.rows[0] || null;
   } catch (error) {
     console.error("Error fetching user by google_sub:", error);
-    throw new Error("Failed to fetch user");
+    throw new DatabaseError("Failed to fetch user", { cause: error });
   }
 };
 
@@ -109,7 +110,7 @@ export const upsertUserFromGoogleProfile = async (
       return result.rows[0];
     } catch (error) {
       console.error("Error updating user from Google profile:", error);
-      throw new Error("Failed to update user");
+      throw new DatabaseError("Failed to update user", { cause: error });
     }
   }
 
@@ -136,6 +137,6 @@ export const upsertUserFromGoogleProfile = async (
     return result.rows[0];
   } catch (error) {
     console.error("Error creating user from Google profile:", error);
-    throw new Error("Failed to create user");
+    throw new DatabaseError("Failed to create user", { cause: error });
   }
 };

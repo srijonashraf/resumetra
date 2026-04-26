@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
+import { Button } from "../ui";
 
 interface GuestBannerProps {
   message: string;
@@ -12,13 +13,13 @@ const GuestBanner = ({ message, onClose }: GuestBannerProps) => {
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 backdrop-blur-sm border border-blue-500/30 rounded-lg p-4 mb-6"
+      className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6"
     >
       <div className="flex items-center justify-between">
         <div className="flex-1">
           <div className="flex items-center mb-2">
             <svg
-              className="w-5 h-5 text-blue-400 mr-2"
+              className="w-5 h-5 text-amber-600 mr-2"
               fill="currentColor"
               viewBox="0 0 20 20"
             >
@@ -28,24 +29,26 @@ const GuestBanner = ({ message, onClose }: GuestBannerProps) => {
                 clipRule="evenodd"
               />
             </svg>
-            <h3 className="text-sm font-semibold text-blue-300">
+            <h3 className="text-sm font-semibold text-amber-800">
               Guest Mode Active
             </h3>
           </div>
-          <p className="text-sm text-gray-300 mb-3">{message}</p>
+          <p className="text-sm text-stone-600 mb-3">{message}</p>
           <div className="flex flex-wrap gap-2">
             <Link
               to="/login"
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
+              className="inline-flex items-center px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 transition-colors"
             >
               Login to Continue
             </Link>
           </div>
         </div>
         {onClose && (
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={onClose}
-            className="ml-4 text-gray-400 hover:text-white transition-colors"
+            className="ml-4 text-stone-400 hover:text-stone-600"
           >
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
               <path
@@ -54,7 +57,7 @@ const GuestBanner = ({ message, onClose }: GuestBannerProps) => {
                 clipRule="evenodd"
               />
             </svg>
-          </button>
+          </Button>
         )}
       </div>
     </motion.div>

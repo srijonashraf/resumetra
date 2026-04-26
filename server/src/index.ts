@@ -5,6 +5,7 @@ import rateLimit from "express-rate-limit";
 import { v4 as uuidv4 } from "uuid";
 import apiRouter from "./routes/api";
 import { testConnection } from "./config/database";
+import { errorHandler } from "./middleware/errorHandler";
 import { requireEnv } from "./utils";
 
 dotenv.config();
@@ -22,7 +23,7 @@ const port = requireEnv("PORT");
 
 app.use(
   cors({
-    origin: ["http://localhost:5173", "https://resume-radar-three.vercel.app"],
+    origin: ["http://localhost:5173"],
     credentials: true,
     maxAge: 86400,
   }),
@@ -45,6 +46,7 @@ app.use((req, res, next) => {
 });
 
 app.use("/api/v1", apiRouter);
+app.use(errorHandler);
 
 app.listen(port, async () => {
   console.log(`Server running on port ${port}`);

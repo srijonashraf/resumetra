@@ -8,6 +8,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Cell,
+  type TooltipProps,
 } from "recharts";
 
 interface SkillTrendsChartProps {
@@ -34,14 +35,14 @@ const SkillTrendsChart = ({ data }: SkillTrendsChartProps) => {
       };
     });
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({ active, payload }: TooltipProps<number, string>) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-          <p className="text-slate-200 text-sm font-medium mb-1">
-            {payload[0].payload.fullSkill}
+        <div className="bg-white border border-stone-200 rounded-xl p-3 shadow-lg">
+          <p className="text-stone-900 text-sm font-medium mb-1">
+            {payload[0].payload?.fullSkill as string}
           </p>
-          <p className="text-blue-400 text-sm">Frequency: {payload[0].value}</p>
+          <p className="text-amber-600 text-sm">Frequency: {payload[0].value}</p>
         </div>
       );
     }
@@ -49,16 +50,16 @@ const SkillTrendsChart = ({ data }: SkillTrendsChartProps) => {
   };
 
   const colors = [
-    "#3b82f6",
-    "#60a5fa",
-    "#93c5fd",
-    "#bfdbfe",
-    "#dbeafe",
-    "#60a5fa",
-    "#3b82f6",
-    "#2563eb",
-    "#1d4ed8",
-    "#1e40af",
+    "#D97706",
+    "#F59E0B",
+    "#FBBF24",
+    "#FCD34D",
+    "#FDE68A",
+    "#F59E0B",
+    "#D97706",
+    "#B45309",
+    "#92400E",
+    "#78350F",
   ];
 
   return (
@@ -75,31 +76,31 @@ const SkillTrendsChart = ({ data }: SkillTrendsChartProps) => {
         >
           <CartesianGrid
             strokeDasharray="3 3"
-            stroke="#334155"
+            stroke="#E7E5E4"
             vertical={false}
           />
           <XAxis
             dataKey="skill"
-            tick={{ fill: "#94a3b8", fontSize: 10 }}
+            tick={{ fill: "#78716C", fontSize: 10 }}
             angle={-45}
             textAnchor="end"
             interval={0}
             height={60}
           />
           <YAxis
-            tick={{ fill: "#94a3b8" }}
+            tick={{ fill: "#78716C" }}
             label={{
               value: "Frequency",
               angle: -90,
               position: "insideLeft",
-              fill: "#94a3b8",
+              fill: "#78716C",
               fontSize: 12,
             }}
             allowDecimals={false}
           />
           <Tooltip
             content={<CustomTooltip />}
-            cursor={{ fill: "rgba(59, 130, 246, 0.1)" }}
+            cursor={{ fill: "rgba(217, 119, 6, 0.08)" }}
           />
           <Bar dataKey="frequency" radius={[4, 4, 0, 0]}>
             {chartData.map((_, index) => (

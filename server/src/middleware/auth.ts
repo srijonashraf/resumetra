@@ -8,6 +8,17 @@ export type AuthRequest = Request & {
   guestUsage?: GuestUsageResult;
 };
 
+/**
+ * Request type guaranteed to have an authenticated user.
+ * Use this for routes behind `requireAuth` middleware.
+ */
+export type AuthenticatedRequest = Request & {
+  user: User;
+};
+
+/**
+ * Authentication middleware that requires a valid user token.
+ */
 export const requireAuth = async (
   req: AuthRequest,
   res: Response,
@@ -61,7 +72,7 @@ export const optionalAuth = async (
         return;
       }
     } catch (error) {
-      // Continue to guest flow
+      console.warn("Token verification failed, proceeding as guest");
     }
   }
 

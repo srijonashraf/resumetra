@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { useStore, AnalysisHistoryEntry } from "../../store/useStore";
 import {
-  DocumentTextIcon,
   CalendarIcon,
   ClockIcon,
   TrashIcon,
@@ -13,8 +13,30 @@ import {
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon, XCircleIcon } from "@heroicons/react/24/solid";
 
+import Badge from "../ui/Badge";
+import Card from "../ui/Card";
+import { Button } from "../ui";
+import { cn } from "../../utils/cn";
 import { deleteHistoryEntry } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
+
+const getRecommendationVariant = (
+  rec: string,
+): "success" | "warning" | "danger" | "info" | "neutral" => {
+  switch (rec) {
+    case "Strong Hire":
+    case "Hire":
+      return "success";
+    case "Maybe":
+      return "warning";
+    case "No Hire":
+      return "danger";
+    case "Needs More Info":
+      return "info";
+    default:
+      return "neutral";
+  }
+};
 
 const AnalysisHistory = () => {
   const analysisHistory = useStore((state) => state.analysisHistory);
@@ -29,24 +51,23 @@ const AnalysisHistory = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="card p-6"
       >
-        <div className="text-center py-12">
-          <LockClosedIcon className="h-16 w-16 mx-auto text-slate-600 mb-4" />
-          <h3 className="text-xl font-medium text-slate-400 mb-2">
-            Login Required
+        <Card padding="xl" className="text-center">
+          <LockClosedIcon className="w-12 h-12 mx-auto text-stone-300 mb-4" />
+          <h3 className="text-xl font-semibold font-heading text-stone-900 mb-2">
+            Sign in to view your history
           </h3>
-          <p className="text-slate-500 mb-6 max-w-md mx-auto">
+          <p className="text-stone-500 mb-6 max-w-md mx-auto">
             Sign in to access your analysis history and track your resume
             improvements over time.
           </p>
           <Link
             to="/login"
-            className="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition-colors"
+            className="inline-flex items-center px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg transition-colors"
           >
             Login to View History
           </Link>
-        </div>
+        </Card>
       </motion.div>
     );
   }
@@ -58,42 +79,40 @@ const AnalysisHistory = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="card p-6"
       >
-        <div className="text-center py-12">
-          <ClockIcon className="h-16 w-16 mx-auto text-slate-600 mb-4" />
-          <h3 className="text-xl font-medium text-slate-400 mb-2">
-            No History Available
+        <Card padding="xl" className="text-center">
+          <ClockIcon className="w-12 h-12 mx-auto text-stone-300 mb-4" />
+          <h3 className="text-xl font-semibold font-heading text-stone-900 mb-2">
+            No analysis history
           </h3>
-          <p className="text-slate-500 mb-6 max-w-md mx-auto">
-            Your previous resume analyses will appear here. Start analyzing to
-            build your history.
+          <p className="text-stone-400 text-sm">
+            Your analyzed resumes will appear here
           </p>
-          <button
-            onClick={() => (window.location.href = "/")}
-            className="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition-colors"
-          >
-            Analyze Your First Resume
-          </button>
-        </div>
+        </Card>
       </motion.div>
     );
   }
 
   const handleDelete = async (id: string) => {
-    if (
-      window.confirm(
-        "Are you sure you want to remove this analysis from history?"
-      )
-    ) {
-      try {
-        await deleteHistoryEntry(id);
-        removeFromHistory(id);
-      } catch (error) {
-        console.error("Failed to delete history:", error);
-        alert("Failed to delete history entry.");
-      }
-    }
+    toast("Remove this analysis from history?", {
+      action: {
+        label: "Remove",
+        onClick: async () => {
+          try {
+            await deleteHistoryEntry(id);
+            removeFromHistory(id);
+            toast.success("Analysis removed from history");
+          } catch (error) {
+            console.error("Failed to delete history:", error);
+            toast.error("Failed to delete history entry.");
+          }
+        },
+      },
+      cancel: {
+        label: "Cancel",
+        onClick: () => {},
+      },
+    });
   };
 
   const toggleExpand = (id: string) => {
@@ -105,9 +124,11 @@ const AnalysisHistory = () => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="card p-6"
+      className="space-y-8"
     >
-      <h2 className="text-2xl font-bold text-white mb-6">Analysis History</h2>
+      <h2 className="text-xl font-semibold font-heading text-stone-900">
+        Analysis History
+      </h2>
 
       <div className="space-y-4">
         {analysisHistory.map((entry: AnalysisHistoryEntry, index) => (
@@ -116,168 +137,175 @@ const AnalysisHistory = () => {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2, delay: index * 0.05 }}
-            className="border border-slate-800 rounded-xl p-4 hover:bg-slate-900/50 transition-all group"
           >
-            <div className="flex items-start justify-between">
-              <div className="flex items-start space-x-4 flex-1">
-                <div className="p-2 bg-blue-500/10 rounded-lg">
-                  <DocumentTextIcon className="h-6 w-6 text-blue-400" />
-                </div>
+            <Card
+              hover="shadow"
+              className={cn(
+                expandedId === entry.id && "ring-2 ring-amber-500/20",
+              )}
+            >
+              {/* Entry Header */}
+              <div className="flex justify-between items-start">
                 <div className="flex-1">
-                  <h3 className="font-medium text-slate-200 text-lg">
-                    Resume Analysis
-                  </h3>
-                  <div className="flex items-center text-sm text-slate-500 mt-1">
+                  {/* Date */}
+                  <div className="flex items-center text-sm text-stone-500">
                     <CalendarIcon className="h-4 w-4 mr-1" />
                     <span>
                       {new Date(entry.date).toLocaleDateString()} at{" "}
                       {new Date(entry.date).toLocaleTimeString()}
                     </span>
                   </div>
+
+                  {/* Score badges */}
+                  <div className="flex gap-2 mt-2">
+                    <span className="bg-stone-100 rounded-lg px-2 py-1 text-xs font-medium text-stone-700">
+                      ATS: {entry.analysisResults.scores.atsCompatibility}
+                    </span>
+                    <span className="bg-stone-100 rounded-lg px-2 py-1 text-xs font-medium text-stone-700">
+                      Content: {entry.analysisResults.scores.contentQuality}
+                    </span>
+                    <span className="bg-stone-100 rounded-lg px-2 py-1 text-xs font-medium text-stone-700">
+                      Impact: {entry.analysisResults.scores.impact}
+                    </span>
+                    <span className="bg-stone-100 rounded-lg px-2 py-1 text-xs font-medium text-stone-700">
+                      Readability: {entry.analysisResults.scores.readability}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Right side: hiring recommendation + actions */}
+                <div className="flex items-center gap-2">
+                  {entry.analysisResults.feedback?.hiringRecommendation && (
+                    <Badge
+                      variant={getRecommendationVariant(
+                        entry.analysisResults.feedback.hiringRecommendation,
+                      )}
+                    >
+                      {entry.analysisResults.feedback.hiringRecommendation}
+                    </Badge>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => toggleExpand(entry.id)}
+                    className="text-stone-400 hover:text-stone-700 hover:bg-stone-100"
+                    title="View details"
+                  >
+                    {expandedId === entry.id ? (
+                      <ChevronUpIcon className="h-5 w-5" />
+                    ) : (
+                      <ChevronDownIcon className="h-5 w-5" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDelete(entry.id)}
+                    className="text-stone-400 hover:text-red-600 hover:bg-red-50"
+                    title="Remove from history"
+                  >
+                    <TrashIcon className="h-5 w-5" />
+                  </Button>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => toggleExpand(entry.id)}
-                  className="text-slate-400 hover:text-blue-400 transition-colors cursor-pointer p-2 hover:bg-blue-500/10 rounded-lg"
-                  title="View details"
-                >
-                  {expandedId === entry.id ? (
-                    <ChevronUpIcon className="h-5 w-5" />
-                  ) : (
-                    <ChevronDownIcon className="h-5 w-5" />
-                  )}
-                </button>
-                <button
-                  onClick={() => handleDelete(entry.id)}
-                  className="text-slate-600 hover:text-red-400 transition-colors cursor-pointer p-2 hover:bg-red-500/10 rounded-lg"
-                  title="Remove from history"
-                >
-                  <TrashIcon className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-3 gap-4 border-t border-slate-800/50 pt-4">
-              <div className="text-sm">
-                <span className="block text-slate-500 text-xs uppercase tracking-wider mb-1">
-                  Skills
-                </span>
-                <span className="font-bold text-blue-400">
-                  {entry.analysisResults.scores.technicalSkills}/10
-                </span>
-              </div>
-              <div className="text-sm">
-                <span className="block text-slate-500 text-xs uppercase tracking-wider mb-1">
-                  Experience
-                </span>
-                <span className="font-bold text-purple-400">
-                  {entry.analysisResults.scores.experience}/10
-                </span>
-              </div>
-              <div className="text-sm">
-                <span className="block text-slate-500 text-xs uppercase tracking-wider mb-1">
-                  Format
-                </span>
-                <span className="font-bold text-green-400">
-                  {entry.analysisResults.scores.presentation}/10
-                </span>
-              </div>
-            </div>
-
-            <AnimatePresence>
-              {expandedId === entry.id && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="overflow-hidden"
-                >
-                  <div className="mt-4 pt-4 border-t border-slate-800/50 space-y-4">
-                    {/* Missing Skills */}
-                    {entry.analysisResults.missingSkills &&
-                      entry.analysisResults.missingSkills.length > 0 && (
-                        <div>
-                          <h4 className="text-sm font-semibold text-slate-300 mb-2 flex items-center">
-                            <XCircleIcon className="h-4 w-4 text-red-400 mr-2" />
-                            Missing Skills
-                          </h4>
-                          <div className="flex flex-wrap gap-2">
-                            {entry.analysisResults.missingSkills.map(
-                              (skill, idx) => (
-                                <span
-                                  key={idx}
-                                  className="px-3 py-1 bg-red-900/20 border border-red-900/30 rounded-full text-xs text-red-300"
-                                >
-                                  {skill}
-                                </span>
-                              )
-                            )}
+              {/* Expanded Detail */}
+              <AnimatePresence>
+                {expandedId === entry.id && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="border-t border-stone-100 mt-4 pt-4 space-y-4">
+                      {/* Missing Skills */}
+                      {entry.analysisResults.feedback?.missingSkills &&
+                        entry.analysisResults.feedback.missingSkills.length >
+                          0 && (
+                          <div>
+                            <h4 className="text-sm font-semibold text-stone-900 mb-2 flex items-center">
+                              <XCircleIcon className="h-4 w-4 text-red-500 mr-2" />
+                              Missing Skills
+                            </h4>
+                            <div className="flex flex-wrap gap-2">
+                              {entry.analysisResults.feedback.missingSkills.map(
+                                (skill, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="bg-red-50 text-red-700 rounded-full px-2 py-0.5 text-xs"
+                                  >
+                                    {skill}
+                                  </span>
+                                ),
+                              )}
+                            </div>
                           </div>
+                        )}
+
+                      {/* Suggestions */}
+                      {entry.analysisResults.feedback?.suggestions && (
+                        <div>
+                          <h4 className="text-sm font-semibold text-stone-900 mb-2 flex items-center">
+                            <CheckCircleIcon className="h-4 w-4 text-green-500 mr-2" />
+                            Improvement Suggestions
+                          </h4>
+
+                          {/* Immediate suggestions */}
+                          {entry.analysisResults.feedback.suggestions
+                            .immediate &&
+                            entry.analysisResults.feedback.suggestions.immediate
+                              .length > 0 && (
+                              <div className="mb-3">
+                                <h5 className="text-xs font-semibold text-amber-600 mb-1">
+                                  Immediate Actions
+                                </h5>
+                                <ul className="space-y-1">
+                                  {entry.analysisResults.feedback.suggestions.immediate.map(
+                                    (suggestion, idx) => (
+                                      <li
+                                        key={idx}
+                                        className="text-sm text-stone-600 pl-4 border-l-2 border-green-200"
+                                      >
+                                        {suggestion}
+                                      </li>
+                                    ),
+                                  )}
+                                </ul>
+                              </div>
+                            )}
+
+                          {/* Short-term suggestions */}
+                          {entry.analysisResults.feedback.suggestions
+                            .shortTerm &&
+                            entry.analysisResults.feedback.suggestions.shortTerm
+                              .length > 0 && (
+                              <div className="mb-3">
+                                <h5 className="text-xs font-semibold text-blue-600 mb-1">
+                                  Short-term Goals
+                                </h5>
+                                <ul className="space-y-1">
+                                  {entry.analysisResults.feedback.suggestions.shortTerm.map(
+                                    (suggestion, idx) => (
+                                      <li
+                                        key={idx}
+                                        className="text-sm text-stone-600 pl-4 border-l-2 border-blue-200"
+                                      >
+                                        {suggestion}
+                                      </li>
+                                    ),
+                                  )}
+                                </ul>
+                              </div>
+                            )}
                         </div>
                       )}
-
-                    {/* Suggestions */}
-                    {entry.analysisResults.recommendations && (
-                      <div>
-                        <h4 className="text-sm font-semibold text-slate-300 mb-2 flex items-center">
-                          <CheckCircleIcon className="h-4 w-4 text-green-400 mr-2" />
-                          Improvement Suggestions
-                        </h4>
-
-                        {/* Immediate suggestions */}
-                        {entry.analysisResults.recommendations.immediate &&
-                          entry.analysisResults.recommendations.immediate
-                            .length > 0 && (
-                            <div className="mb-3">
-                              <h5 className="text-xs font-semibold text-orange-400 mb-1">
-                                Immediate Actions
-                              </h5>
-                              <ul className="space-y-1">
-                                {entry.analysisResults.recommendations.immediate.map(
-                                  (suggestion, idx) => (
-                                    <li
-                                      key={idx}
-                                      className="text-sm text-slate-400 pl-4 border-l-2 border-green-500/30"
-                                    >
-                                      {suggestion}
-                                    </li>
-                                  )
-                                )}
-                              </ul>
-                            </div>
-                          )}
-
-                        {/* Short-term suggestions */}
-                        {entry.analysisResults.recommendations.shortTerm &&
-                          entry.analysisResults.recommendations.shortTerm
-                            .length > 0 && (
-                            <div className="mb-3">
-                              <h5 className="text-xs font-semibold text-blue-400 mb-1">
-                                Short-term Goals
-                              </h5>
-                              <ul className="space-y-1">
-                                {entry.analysisResults.recommendations.shortTerm.map(
-                                  (suggestion, idx) => (
-                                    <li
-                                      key={idx}
-                                      className="text-sm text-slate-400 pl-4 border-l-2 border-blue-500/30"
-                                    >
-                                      {suggestion}
-                                    </li>
-                                  )
-                                )}
-                              </ul>
-                            </div>
-                          )}
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </Card>
           </motion.div>
         ))}
       </div>

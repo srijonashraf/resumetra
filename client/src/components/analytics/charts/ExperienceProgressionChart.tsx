@@ -7,6 +7,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  type TooltipProps,
 } from "recharts";
 
 interface ExperienceProgressionChartProps {
@@ -52,15 +53,15 @@ const ExperienceProgressionChart = ({
       (a, b) => new Date(a.fullDate).getTime() - new Date(b.fullDate).getTime()
     );
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({ active, payload }: TooltipProps<number, string>) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-          <p className="text-slate-300 text-sm mb-1">
-            {new Date(payload[0].payload.fullDate).toLocaleDateString()}
+        <div className="bg-white border border-stone-200 rounded-xl p-3 shadow-lg">
+          <p className="text-stone-500 text-sm mb-1">
+            {new Date(payload[0].payload?.fullDate as string).toLocaleDateString()}
           </p>
-          <p className="text-blue-400 text-sm">
-            Level: {payload[0].payload.experienceLevel}
+          <p className="text-amber-600 text-sm font-medium">
+            {payload[0].payload?.experienceLevel as string}
           </p>
         </div>
       );
@@ -81,16 +82,16 @@ const ExperienceProgressionChart = ({
     >
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#E7E5E4" />
           <XAxis
             dataKey="date"
-            tick={{ fill: "#94a3b8", fontSize: 11 }}
+            tick={{ fill: "#78716C", fontSize: 11 }}
             angle={-45}
             textAnchor="end"
             height={60}
           />
           <YAxis
-            tick={{ fill: "#94a3b8", fontSize: 10 }}
+            tick={{ fill: "#78716C", fontSize: 10 }}
             domain={[0, 7]}
             ticks={[1, 2, 3, 4, 5, 6]}
             tickFormatter={formatYAxisTick}
@@ -100,10 +101,10 @@ const ExperienceProgressionChart = ({
           <Line
             type="monotone"
             dataKey="levelValue"
-            stroke="#8b5cf6"
+            stroke="#D97706"
             strokeWidth={3}
-            dot={{ fill: "#8b5cf6", r: 6 }}
-            activeDot={{ r: 8 }}
+            dot={{ fill: "#D97706", r: 6, stroke: "#fff", strokeWidth: 2 }}
+            activeDot={{ r: 8, stroke: "#D97706", strokeWidth: 2, fill: "#fff" }}
           />
         </LineChart>
       </ResponsiveContainer>

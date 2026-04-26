@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useStore, TailorResult, TailorSection } from "../../store/useStore";
+import { useStore, TailorResult, TailorSection, JobMatchResult } from "../../store/useStore";
+import { ApiError } from "../../services/errors";
 import { toast } from "sonner";
 import {
   BriefcaseIcon,
@@ -13,52 +14,69 @@ import {
   ArrowRightIcon,
 } from "@heroicons/react/24/outline";
 import { compareWithJobDescription, tailorResume } from "../../services/api";
+import Badge from "../ui/Badge";
+import ScoreCard from "../ui/ScoreCard";
+import Card from "../ui/Card";
+import { Button, Tabs, Textarea } from "../ui";
+
+const Spinner = ({ className = "" }: { className?: string }) => (
+  <svg
+    className={`animate-spin -ml-1 mr-2 h-4 w-4 ${className}`}
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    viewBox="0 0 24 24"
+  >
+    <circle
+      className="opacity-25"
+      cx="12"
+      cy="12"
+      r="10"
+      stroke="currentColor"
+      strokeWidth="4"
+    />
+    <path
+      className="opacity-75"
+      fill="currentColor"
+      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 10a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 10a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+    />
+  </svg>
+);
 
 const JobAnalysisPanel = () => {
   const jobDescription = useStore((state) => state.jobDescription);
   const [jobInput, setJobInput] = useState(jobDescription || "");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isTailoring, setIsTailoring] = useState(false);
-  const [jobMatchResults, setJobMatchResults] = useState<any>(null);
+  const [jobMatchResults, setJobMatchResults] = useState<JobMatchResult | null>(null);
   const [tailorResults, setTailorResults] = useState<TailorResult | null>(null);
   const [expandedSections, setExpandedSections] = useState<Set<number>>(
-    new Set()
+    new Set(),
   );
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [activeSection, setActiveSection] = useState<"input" | "tailor">(
-    "input"
+    "input",
   );
 
-  const getMatchColor = (score: number) => {
-    if (score >= 80) return "text-green-400";
-    if (score >= 60) return "text-yellow-400";
-    if (score >= 40) return "text-orange-400";
-    return "text-red-400";
-  };
-
-  const getMatchBgColor = (score: number) => {
-    if (score >= 80) return "bg-green-500";
-    if (score >= 60) return "bg-yellow-500";
-    if (score >= 40) return "bg-orange-500";
-    return "bg-red-500";
+  const getMatchBadgeVariant = (score: number): "success" | "info" | "warning" | "danger" => {
+    if (score >= 86) return "success";
+    if (score >= 66) return "info";
+    if (score >= 41) return "warning";
+    return "danger";
   };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case "High":
-        return "bg-red-500/20 text-red-400 border-red-500/30";
+        return "bg-red-50 text-red-700 border-red-200";
       case "Medium":
-        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+        return "bg-amber-50 text-amber-700 border-amber-200";
       case "Low":
-        return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+        return "bg-stone-100 text-stone-600 border-stone-200";
       default:
-        return "bg-slate-500/20 text-slate-400 border-slate-500/30";
+        return "bg-stone-100 text-stone-600 border-stone-200";
     }
   };
 
-  /**
-   * Handles job description analysis against the uploaded resume
-   */
   const handleJobAnalysis = async () => {
     if (!jobInput.trim()) {
       toast.error("Please enter a job description", {
@@ -71,17 +89,24 @@ const JobAnalysisPanel = () => {
       setIsAnalyzing(true);
       setTailorResults(null);
 
-      const resumeData = useStore.getState().resumeData;
-      if (!resumeData?.rawText) {
-        toast.error("No resume data found", {
-          description: "Please upload a resume first",
+      const analysisResults = useStore.getState().analysisResults;
+      if (!analysisResults) {
+        toast.error("No analysis found", {
+          description: "Please analyze a resume first",
+        });
+        return;
+      }
+
+      if (!analysisResults.analysisId) {
+        toast.error("Analysis not saved", {
+          description: "Please re-analyze your resume while logged in",
         });
         return;
       }
 
       const results = await compareWithJobDescription(
-        resumeData.rawText,
-        jobInput
+        analysisResults.analysisId,
+        jobInput,
       );
 
       setJobMatchResults(results);
@@ -90,24 +115,35 @@ const JobAnalysisPanel = () => {
       toast.success("Job analysis completed!", {
         description: "Your resume has been compared with the job description",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Job match analysis error:", error);
       toast.error("Failed to analyze job description", {
-        description: error.message || "Please try again",
+        description: error instanceof ApiError ? error.message : "Please try again",
       });
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  /**
-   * Handles tailoring the resume to match the job description
-   */
   const handleTailorResume = async () => {
     try {
       setIsTailoring(true);
 
-      const resumeData = useStore.getState().resumeData;
+      const { analysisResults, resumeData } = useStore.getState();
+      if (!analysisResults) {
+        toast.error("No analysis found", {
+          description: "Please analyze a resume first",
+        });
+        return;
+      }
+
+      if (!analysisResults.analysisId) {
+        toast.error("Analysis not saved", {
+          description: "Please re-analyze your resume while logged in",
+        });
+        return;
+      }
+
       if (!resumeData?.rawText) {
         toast.error("No resume data found", {
           description: "Please upload a resume first",
@@ -115,7 +151,11 @@ const JobAnalysisPanel = () => {
         return;
       }
 
-      const results = await tailorResume(resumeData.rawText, jobInput);
+      const results = await tailorResume(
+        analysisResults.analysisId,
+        resumeData.rawText,
+        jobInput,
+      );
       setTailorResults(results);
       setActiveSection("tailor");
       setExpandedSections(new Set([0]));
@@ -123,19 +163,16 @@ const JobAnalysisPanel = () => {
       toast.success("Resume tailoring completed!", {
         description: "Section-by-section suggestions are ready",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Tailor resume error:", error);
       toast.error("Failed to tailor resume", {
-        description: error.message || "Please try again",
+        description: error instanceof ApiError ? error.message : "Please try again",
       });
     } finally {
       setIsTailoring(false);
     }
   };
 
-  /**
-   * Toggles the expansion state of a tailoring section
-   */
   const toggleSection = (index: number) => {
     const newExpanded = new Set(expandedSections);
     if (newExpanded.has(index)) {
@@ -146,9 +183,6 @@ const JobAnalysisPanel = () => {
     setExpandedSections(newExpanded);
   };
 
-  /**
-   * Copies text to clipboard with visual feedback
-   */
   const copyToClipboard = async (text: string, index?: number) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -157,70 +191,59 @@ const JobAnalysisPanel = () => {
         setTimeout(() => setCopiedIndex(null), 2000);
       }
       toast.success("Copied to clipboard");
-    } catch (error) {
+    } catch {
       toast.error("Failed to copy to clipboard");
     }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600/10 to-purple-600/10 border border-blue-500/20 rounded-xl p-6">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-blue-500/20 rounded-xl">
-            <BriefcaseIcon className="h-8 w-8 text-blue-400" />
-          </div>
-          <div>
-            <h3 className="text-xl font-bold text-white mb-1">
-              Job Analysis & Resume Tailoring
-            </h3>
-            <p className="text-slate-300">
-              Compare your resume with job descriptions and get AI-powered
-              tailoring suggestions
-            </p>
-          </div>
-        </div>
+    <Card shadow className="mt-6">
+      {/* Header — matches CareerMap pattern */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
+        <h2 className="text-xl sm:text-2xl font-bold text-stone-900 font-heading">
+          Job Analysis & Resume Tailoring
+        </h2>
       </div>
 
-      {/* Toggle Buttons */}
-      <div className="flex gap-2 bg-slate-900/50 p-1 rounded-xl border border-slate-800">
-        <button
-          onClick={() => setActiveSection("input")}
-          className={`flex-1 inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-all ${
-            activeSection === "input"
-              ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20"
-              : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-          }`}
-        >
-          <BriefcaseIcon className="h-4 w-4 mr-2" />
-          Job Analysis
-        </button>
-        <button
-          onClick={() => setActiveSection("tailor")}
-          disabled={!tailorResults}
-          className={`flex-1 inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-all ${
-            activeSection === "tailor"
-              ? "bg-green-600 text-white shadow-lg shadow-green-500/20"
-              : tailorResults
-              ? "bg-slate-800 text-slate-400 hover:bg-slate-700"
-              : "bg-slate-800 text-slate-600 cursor-not-allowed"
-          }`}
-        >
-          <DocumentTextIcon className="h-4 w-4 mr-2" />
-          Tailor Results
-          {!tailorResults && (
-            <span className="text-xs text-slate-500 ml-1">
-              (
-              {!jobMatchResults
-                ? "Analyze Job Match first"
-                : "Click Tailor Resume first"}
-              )
-            </span>
-          )}
-        </button>
-      </div>
+      {/* Toggle Tabs */}
+      <Tabs
+        variant="segmented"
+        className="mb-6"
+        tabs={[
+          {
+            id: "input",
+            label: (
+              <>
+                <BriefcaseIcon className="h-4 w-4 mr-2" />
+                Job Analysis
+              </>
+            ),
+          },
+          {
+            id: "tailor",
+            label: (
+              <>
+                <DocumentTextIcon className="h-4 w-4 mr-2" />
+                Tailor Results
+                {!tailorResults && (
+                  <span className="text-xs text-stone-400 ml-1">
+                    (
+                    {!jobMatchResults
+                      ? "Analyze Job Match first"
+                      : "Click Tailor Resume first"}
+                    )
+                  </span>
+                )}
+              </>
+            ),
+            disabled: !tailorResults,
+          },
+        ]}
+        activeTab={activeSection}
+        onTabChange={(id) => setActiveSection(id as "input" | "tailor")}
+      />
 
-      {/* Job Description Input Section */}
+      {/* Section Content */}
       <AnimatePresence mode="wait">
         {activeSection === "input" && (
           <motion.div
@@ -229,326 +252,284 @@ const JobAnalysisPanel = () => {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 20 }}
             transition={{ duration: 0.3 }}
+            className="space-y-4"
           >
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Job Description
-                </label>
-                <textarea
-                  value={jobInput}
-                  onChange={(e) => setJobInput(e.target.value)}
-                  className="input-field h-32 resize-none"
-                  placeholder="Paste the job description here to compare with your resume..."
-                  disabled={isAnalyzing || isTailoring}
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-2">
+                Job Description
+              </label>
+              <Textarea
+                value={jobInput}
+                onChange={(e) => setJobInput(e.target.value)}
+                className="min-h-[120px] resize-none"
+                placeholder="Paste the job description here to compare with your resume..."
+                disabled={isAnalyzing || isTailoring}
+              />
+            </div>
 
-              <button
-                onClick={handleJobAnalysis}
-                disabled={isAnalyzing || !jobInput.trim()}
-                className="w-full btn-primary"
+            <Button
+              onClick={handleJobAnalysis}
+              disabled={isAnalyzing || !jobInput.trim()}
+              className="w-full"
+            >
+              {isAnalyzing ? (
+                <span className="flex items-center justify-center">
+                  <Spinner className="text-white" />
+                  Analyzing...
+                </span>
+              ) : (
+                <span className="flex items-center justify-center">
+                  <SparklesIcon className="h-4 w-4 mr-2" />
+                  Analyze Job Match
+                </span>
+              )}
+            </Button>
+
+            {/* Job Match Results */}
+            {jobMatchResults && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-4 mt-6"
               >
-                {isAnalyzing ? (
-                  <span className="flex items-center justify-center">
-                    <svg
-                      className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 10a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 10a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                      ></path>
-                    </svg>
-                    Analyzing...
-                  </span>
-                ) : (
-                  <span className="flex items-center justify-center">
-                    <SparklesIcon className="h-4 w-4 mr-2" />
-                    Analyze Job Match
-                  </span>
-                )}
-              </button>
+                {/* Score Overview */}
+                <div className="bg-stone-50 rounded-xl p-6">
+                  <div className="flex flex-col sm:flex-row items-center gap-6">
+                    <ScoreCard
+                      title="Match Score"
+                      score={jobMatchResults.matchPercentage}
+                      maxScore={100}
+                      size="lg"
+                    />
 
-              {/* Job Match Results */}
-              {jobMatchResults && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="space-y-6 mt-6"
-                >
-                  {/* Score Overview */}
-                  <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
-                    <div className="flex items-center justify-between mb-6">
-                      <h4 className="text-lg font-semibold text-white">
-                        Match Score
-                      </h4>
-                      <span
-                        className={`text-4xl font-bold ${getMatchColor(
-                          jobMatchResults.matchPercentage
-                        )}`}
-                      >
-                        {jobMatchResults.matchPercentage}%
-                      </span>
-                    </div>
-
-                    <div className="w-full bg-slate-700 rounded-full h-3 mb-4">
-                      <div
-                        className={`h-3 rounded-full transition-all duration-500 ${getMatchBgColor(
-                          jobMatchResults.matchPercentage
-                        )}`}
-                        style={{
-                          width: `${jobMatchResults.matchPercentage}%`,
-                        }}
-                      />
-                    </div>
-
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-400">Match Level:</span>
-                      <span
-                        className={`font-medium ${getMatchColor(
-                          jobMatchResults.matchPercentage
-                        )}`}
-                      >
-                        {jobMatchResults.matchLevel}
-                      </span>
-                    </div>
-
-                    {/* Keyword Stats */}
-                    <div className="grid grid-cols-3 gap-4 mt-6 pt-4 border-t border-slate-700">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-blue-400">
-                          {jobMatchResults.keyword_analysis?.total_keywords ||
-                            0}
-                        </div>
-                        <div className="text-xs text-slate-400">
-                          Total Keywords
-                        </div>
+                    <div className="flex-1 text-center sm:text-left">
+                      <div className="flex items-center gap-3 mb-3 justify-center sm:justify-start">
+                        <h4 className="text-lg font-semibold text-stone-900">
+                          Keyword Match
+                        </h4>
+                        <Badge variant={getMatchBadgeVariant(jobMatchResults.matchPercentage)}>
+                          {jobMatchResults.matchLevel}
+                        </Badge>
                       </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-green-400">
-                          {jobMatchResults.keyword_analysis?.matched_keywords ||
-                            0}
+
+                      <div className="mb-2">
+                        <div className="flex justify-between text-xs text-stone-500 mb-1">
+                          <span>Keywords matched</span>
+                          <span>
+                            {jobMatchResults.keyword_analysis?.matched_keywords || 0} of{" "}
+                            {jobMatchResults.keyword_analysis?.total_keywords || 0}
+                          </span>
                         </div>
-                        <div className="text-xs text-slate-400">Matched</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-red-400">
-                          {(jobMatchResults.keyword_analysis?.total_keywords ||
-                            0) -
-                            (jobMatchResults.keyword_analysis
-                              ?.matched_keywords || 0)}
+                        <div className="w-full bg-stone-200 rounded-full h-2">
+                          <div
+                            className="h-2 rounded-full bg-amber-600 transition-all duration-500"
+                            style={{
+                              width: `${
+                                jobMatchResults.keyword_analysis?.total_keywords
+                                  ? (jobMatchResults.keyword_analysis.matched_keywords /
+                                      jobMatchResults.keyword_analysis.total_keywords) *
+                                    100
+                                  : 0
+                              }%`,
+                            }}
+                          />
                         </div>
-                        <div className="text-xs text-slate-400">Missing</div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Present Skills */}
-                  {jobMatchResults.presentSkills && (
-                    <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
-                      <h4 className="text-lg font-semibold text-white mb-4 flex items-center">
-                        <CheckCircleIcon className="h-5 w-5 text-green-400 mr-2" />
-                        Skills Found in Your Resume
-                      </h4>
-                      <div className="space-y-3">
-                        {jobMatchResults.presentSkills.exact_matches?.length >
-                          0 && (
-                          <div>
-                            <span className="text-xs text-green-400 font-medium">
-                              Exact Matches
-                            </span>
-                            <div className="flex flex-wrap gap-1.5 mt-1">
-                              {jobMatchResults.presentSkills.exact_matches.map(
-                                (skill: string, idx: number) => (
-                                  <span
-                                    key={idx}
-                                    className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-md border border-green-500/30"
-                                  >
-                                    {skill}
-                                  </span>
-                                )
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        {jobMatchResults.presentSkills.partial_matches?.length >
-                          0 && (
-                          <div>
-                            <span className="text-xs text-yellow-400 font-medium">
-                              Partial Matches
-                            </span>
-                            <div className="flex flex-wrap gap-1.5 mt-1">
-                              {jobMatchResults.presentSkills.partial_matches.map(
-                                (skill: string, idx: number) => (
-                                  <span
-                                    key={idx}
-                                    className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-md border border-yellow-500/30"
-                                  >
-                                    {skill}
-                                  </span>
-                                )
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        {jobMatchResults.presentSkills.transferable_skills
-                          ?.length > 0 && (
-                          <div>
-                            <span className="text-xs text-blue-400 font-medium">
-                              Transferable Skills
-                            </span>
-                            <div className="flex flex-wrap gap-1.5 mt-1">
-                              {jobMatchResults.presentSkills.transferable_skills.map(
-                                (skill: string, idx: number) => (
-                                  <span
-                                    key={idx}
-                                    className="px-2 py-0.5 bg-blue-500/20 text-blue-400 text-xs rounded-md border border-blue-500/30"
-                                  >
-                                    {skill}
-                                  </span>
-                                )
-                              )}
-                            </div>
-                          </div>
-                        )}
+                  <div className="grid grid-cols-3 gap-4 mt-6 pt-4 border-t border-stone-200">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-stone-900">
+                        {jobMatchResults.keyword_analysis?.total_keywords || 0}
                       </div>
+                      <div className="text-xs text-stone-500">Total Keywords</div>
                     </div>
-                  )}
-
-                  {/* Missing Skills */}
-                  {jobMatchResults.missingSkills && (
-                    <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
-                      <h4 className="text-lg font-semibold text-white mb-4">
-                        Skills to Add
-                      </h4>
-                      <div className="space-y-3">
-                        {jobMatchResults.missingSkills.critical?.length > 0 && (
-                          <div>
-                            <span className="text-xs text-red-400 font-medium">
-                              Critical
-                            </span>
-                            <div className="flex flex-wrap gap-1.5 mt-1">
-                              {jobMatchResults.missingSkills.critical.map(
-                                (skill: string, idx: number) => (
-                                  <span
-                                    key={idx}
-                                    className="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs rounded-md border border-red-500/30"
-                                  >
-                                    {skill}
-                                  </span>
-                                )
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        {jobMatchResults.missingSkills.important?.length >
-                          0 && (
-                          <div>
-                            <span className="text-xs text-orange-400 font-medium">
-                              Important
-                            </span>
-                            <div className="flex flex-wrap gap-1.5 mt-1">
-                              {jobMatchResults.missingSkills.important.map(
-                                (skill: string, idx: number) => (
-                                  <span
-                                    key={idx}
-                                    className="px-2 py-0.5 bg-orange-500/20 text-orange-400 text-xs rounded-md border border-orange-500/30"
-                                  >
-                                    {skill}
-                                  </span>
-                                )
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        {jobMatchResults.missingSkills.nice_to_have?.length >
-                          0 && (
-                          <div>
-                            <span className="text-xs text-slate-400 font-medium">
-                              Nice to Have
-                            </span>
-                            <div className="flex flex-wrap gap-1.5 mt-1">
-                              {jobMatchResults.missingSkills.nice_to_have.map(
-                                (skill: string, idx: number) => (
-                                  <span
-                                    key={idx}
-                                    className="px-2 py-0.5 bg-slate-500/20 text-slate-400 text-xs rounded-md border border-slate-500/30"
-                                  >
-                                    {skill}
-                                  </span>
-                                )
-                              )}
-                            </div>
-                          </div>
-                        )}
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-emerald-600">
+                        {jobMatchResults.keyword_analysis?.matched_keywords || 0}
                       </div>
+                      <div className="text-xs text-stone-500">Matched</div>
                     </div>
-                  )}
-
-                  {/* Recommendation */}
-                  {jobMatchResults.recommendation && (
-                    <div className="bg-gradient-to-r from-blue-600/10 to-purple-600/10 rounded-xl p-4 border border-blue-500/20">
-                      <h4 className="text-sm font-semibold text-blue-400 mb-2">
-                        AI Recommendation
-                      </h4>
-                      <p className="text-slate-300 text-sm leading-relaxed">
-                        {jobMatchResults.recommendation}
-                      </p>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-red-600">
+                        {(jobMatchResults.keyword_analysis?.total_keywords || 0) -
+                          (jobMatchResults.keyword_analysis?.matched_keywords || 0)}
+                      </div>
+                      <div className="text-xs text-stone-500">Missing</div>
                     </div>
-                  )}
+                  </div>
+                </div>
 
-                  {/* Tailor Resume Button */}
-                  <button
-                    onClick={handleTailorResume}
-                    disabled={isTailoring}
-                    className="w-full btn-primary bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 shadow-lg shadow-green-500/20"
-                  >
-                    {isTailoring ? (
-                      <span className="flex items-center justify-center">
-                        <svg
-                          className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          ></circle>
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 10a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 10a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                          ></path>
-                        </svg>
-                        Tailoring Your Resume...
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-center">
-                        <SparklesIcon className="h-4 w-4 mr-2" />✨ Tailor My
-                        Resume for This Job
-                      </span>
-                    )}
-                  </button>
-                </motion.div>
-              )}
-            </div>
+                {/* Present Skills */}
+                {jobMatchResults.presentSkills && (
+                  <div className="bg-stone-50 rounded-xl p-6">
+                    <h4 className="text-lg font-semibold text-stone-900 mb-4 flex items-center">
+                      <CheckCircleIcon className="h-5 w-5 text-emerald-500 mr-2" />
+                      Skills Found in Your Resume
+                    </h4>
+                    <div className="space-y-3">
+                      {jobMatchResults.presentSkills.exact_matches?.length > 0 && (
+                        <div>
+                          <span className="text-xs text-emerald-600 font-medium">
+                            Exact Matches
+                          </span>
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            {jobMatchResults.presentSkills.exact_matches.map(
+                              (skill: string, idx: number) => (
+                                <span
+                                  key={idx}
+                                  className="bg-emerald-50 text-emerald-700 rounded-full px-2 py-1 text-xs"
+                                >
+                                  {skill}
+                                </span>
+                              ),
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {jobMatchResults.presentSkills.partial_matches?.length > 0 && (
+                        <div>
+                          <span className="text-xs text-amber-600 font-medium">
+                            Partial Matches
+                          </span>
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            {jobMatchResults.presentSkills.partial_matches.map(
+                              (skill: string, idx: number) => (
+                                <span
+                                  key={idx}
+                                  className="bg-amber-50 text-amber-700 rounded-full px-2 py-1 text-xs"
+                                >
+                                  {skill}
+                                </span>
+                              ),
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {jobMatchResults.presentSkills.transferable_skills?.length > 0 && (
+                        <div>
+                          <span className="text-xs text-blue-600 font-medium">
+                            Transferable Skills
+                          </span>
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            {jobMatchResults.presentSkills.transferable_skills.map(
+                              (skill: string, idx: number) => (
+                                <span
+                                  key={idx}
+                                  className="bg-blue-50 text-blue-700 rounded-full px-2 py-1 text-xs"
+                                >
+                                  {skill}
+                                </span>
+                              ),
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Missing Skills */}
+                {jobMatchResults.missingSkills && (
+                  <div className="bg-stone-50 rounded-xl p-6">
+                    <h4 className="text-lg font-semibold text-stone-900 mb-4">
+                      Skills to Add
+                    </h4>
+                    <div className="space-y-3">
+                      {jobMatchResults.missingSkills.critical?.length > 0 && (
+                        <div>
+                          <span className="text-xs text-red-600 font-medium">
+                            Critical
+                          </span>
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            {jobMatchResults.missingSkills.critical.map(
+                              (skill: string, idx: number) => (
+                                <span
+                                  key={idx}
+                                  className="bg-red-50 text-red-700 rounded-full px-2 py-1 text-xs"
+                                >
+                                  {skill}
+                                </span>
+                              ),
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {jobMatchResults.missingSkills.important?.length > 0 && (
+                        <div>
+                          <span className="text-xs text-amber-600 font-medium">
+                            Important
+                          </span>
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            {jobMatchResults.missingSkills.important.map(
+                              (skill: string, idx: number) => (
+                                <span
+                                  key={idx}
+                                  className="bg-amber-50 text-amber-700 rounded-full px-2 py-1 text-xs"
+                                >
+                                  {skill}
+                                </span>
+                              ),
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {jobMatchResults.missingSkills.nice_to_have?.length > 0 && (
+                        <div>
+                          <span className="text-xs text-stone-500 font-medium">
+                            Nice to Have
+                          </span>
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            {jobMatchResults.missingSkills.nice_to_have.map(
+                              (skill: string, idx: number) => (
+                                <span
+                                  key={idx}
+                                  className="bg-stone-100 text-stone-600 rounded-full px-2 py-1 text-xs"
+                                >
+                                  {skill}
+                                </span>
+                              ),
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Recommendation — left-border accent matching AnalysisResults pattern */}
+                {jobMatchResults.recommendation && (
+                  <div className="bg-stone-50 rounded-xl p-4 border-l-4 border-l-amber-500">
+                    <h4 className="text-sm font-semibold text-stone-700 mb-2">
+                      AI Recommendation
+                    </h4>
+                    <p className="text-stone-700 text-sm leading-relaxed italic">
+                      {jobMatchResults.recommendation}
+                    </p>
+                  </div>
+                )}
+
+                {/* Tailor Resume Button */}
+                <Button
+                  onClick={handleTailorResume}
+                  disabled={isTailoring}
+                  className="w-full"
+                >
+                  {isTailoring ? (
+                    <span className="flex items-center justify-center">
+                      <Spinner className="text-white" />
+                      Tailoring Your Resume...
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center">
+                      <SparklesIcon className="h-4 w-4 mr-2" />
+                      Tailor My Resume for This Job
+                    </span>
+                  )}
+                </Button>
+              </motion.div>
+            )}
           </motion.div>
         )}
 
@@ -560,29 +541,29 @@ const JobAnalysisPanel = () => {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.3 }}
-            className="space-y-6"
+            className="space-y-4"
           >
             {/* ATS Score Improvement */}
-            <div className="bg-gradient-to-r from-green-600/10 to-emerald-600/10 border border-green-500/20 rounded-xl p-6">
-              <h4 className="text-lg font-semibold text-white mb-4">
+            <div className="bg-stone-50 rounded-xl p-6">
+              <h4 className="text-lg font-semibold text-stone-900 mb-4">
                 Estimated ATS Score Improvement
               </h4>
               <div className="flex items-center justify-center gap-8">
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-slate-400">
+                  <div className="text-3xl font-bold text-stone-400">
                     {tailorResults.ats_improvement.before_score}%
                   </div>
-                  <div className="text-xs text-slate-500 mt-1">Before</div>
+                  <div className="text-xs text-stone-500 mt-1">Before</div>
                 </div>
-                <ArrowRightIcon className="h-6 w-6 text-green-400" />
+                <ArrowRightIcon className="h-6 w-6 text-amber-600" />
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-green-400">
+                  <div className="text-3xl font-bold text-emerald-600">
                     {tailorResults.ats_improvement.after_score}%
                   </div>
-                  <div className="text-xs text-green-400/70 mt-1">After</div>
+                  <div className="text-xs text-emerald-600 mt-1">After</div>
                 </div>
-                <div className="ml-4 px-3 py-1 bg-green-500/20 rounded-full">
-                  <span className="text-sm font-medium text-green-400">
+                <div className="ml-4 px-3 py-1 bg-emerald-50 rounded-full">
+                  <span className="text-sm font-medium text-emerald-700">
                     +
                     {tailorResults.ats_improvement.after_score -
                       tailorResults.ats_improvement.before_score}
@@ -593,19 +574,19 @@ const JobAnalysisPanel = () => {
             </div>
 
             {/* Overall Strategy */}
-            <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
-              <h4 className="text-sm font-semibold text-blue-400 mb-2">
+            <div className="bg-amber-50 rounded-xl p-4">
+              <h4 className="text-sm font-semibold text-amber-800 mb-2">
                 Tailoring Strategy
               </h4>
-              <p className="text-slate-300 text-sm leading-relaxed">
+              <p className="text-amber-800 text-sm leading-relaxed">
                 {tailorResults.overall_strategy}
               </p>
             </div>
 
             {/* Keywords Summary */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
-                <h4 className="text-sm font-semibold text-green-400 mb-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-stone-50 rounded-xl p-4">
+                <h4 className="text-sm font-semibold text-emerald-600 mb-2">
                   Keywords Already Present
                 </h4>
                 <div className="flex flex-wrap gap-1.5">
@@ -613,23 +594,23 @@ const JobAnalysisPanel = () => {
                     (keyword, idx) => (
                       <span
                         key={idx}
-                        className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-md"
+                        className="bg-emerald-50 text-emerald-700 text-xs rounded-full px-2 py-0.5"
                       >
                         {keyword}
                       </span>
-                    )
+                    ),
                   )}
                 </div>
               </div>
-              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
-                <h4 className="text-sm font-semibold text-yellow-400 mb-2">
+              <div className="bg-stone-50 rounded-xl p-4">
+                <h4 className="text-sm font-semibold text-amber-600 mb-2">
                   Keywords to Add
                 </h4>
                 <div className="flex flex-wrap gap-1.5">
                   {tailorResults.keywords_to_add.map((keyword, idx) => (
                     <span
                       key={idx}
-                      className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-md"
+                      className="bg-amber-50 text-amber-700 text-xs rounded-full px-2 py-0.5"
                     >
                       {keyword}
                     </span>
@@ -640,41 +621,41 @@ const JobAnalysisPanel = () => {
 
             {/* Section-by-Section Rewrites */}
             <div className="space-y-3">
-              <h4 className="text-lg font-semibold text-white">
+              <h4 className="text-lg font-semibold text-stone-900">
                 Section-by-Section Tailoring
               </h4>
               {tailorResults.sections.map(
                 (section: TailorSection, index: number) => (
-                  <div
+                  <Card
                     key={index}
-                    className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden"
+                    shadow
+                    overflow
+                    padding="none"
                   >
-                    {/* Section Header */}
                     <button
                       onClick={() => toggleSection(index)}
-                      className="w-full flex items-center justify-between p-4 hover:bg-slate-700/30 transition-colors"
+                      className="w-full flex items-center justify-between p-4 hover:bg-stone-50 transition-colors"
                     >
                       <div className="flex items-center gap-3">
-                        <DocumentTextIcon className="h-5 w-5 text-blue-400" />
-                        <span className="font-medium text-white">
+                        <DocumentTextIcon className="h-5 w-5 text-amber-600" />
+                        <span className="font-medium text-stone-900">
                           {section.name}
                         </span>
                         <span
-                          className={`px-2 py-0.5 text-xs rounded-md border ${getPriorityColor(
-                            section.priority
+                          className={`px-2 py-0.5 text-xs rounded-full border ${getPriorityColor(
+                            section.priority,
                           )}`}
                         >
                           {section.priority} Priority
                         </span>
                       </div>
                       {expandedSections.has(index) ? (
-                        <ChevronUpIcon className="h-5 w-5 text-slate-400" />
+                        <ChevronUpIcon className="h-5 w-5 text-stone-400" />
                       ) : (
-                        <ChevronDownIcon className="h-5 w-5 text-slate-400" />
+                        <ChevronDownIcon className="h-5 w-5 text-stone-400" />
                       )}
                     </button>
 
-                    {/* Expanded Content */}
                     <AnimatePresence>
                       {expandedSections.has(index) && (
                         <motion.div
@@ -682,34 +663,32 @@ const JobAnalysisPanel = () => {
                           animate={{ height: "auto", opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
                           transition={{ duration: 0.2 }}
-                          className="border-t border-slate-700"
+                          className="border-t border-stone-100"
                         >
                           <div className="p-4 space-y-4">
-                            {/* Before */}
                             <div>
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-xs font-medium text-red-400 uppercase">
-                                  Before
-                                </span>
-                              </div>
-                              <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700">
-                                <p className="text-slate-400 text-sm whitespace-pre-wrap">
+                              <span className="text-xs font-medium text-stone-500 uppercase">
+                                Before
+                              </span>
+                              <div className="bg-stone-50 rounded-lg p-4 mt-2">
+                                <p className="text-sm font-mono text-stone-600 whitespace-pre-wrap">
                                   {section.before}
                                 </p>
                               </div>
                             </div>
 
-                            {/* After */}
                             <div>
                               <div className="flex items-center justify-between mb-2">
-                                <span className="text-xs font-medium text-green-400 uppercase">
+                                <span className="text-xs font-medium text-emerald-600 uppercase">
                                   After (Tailored)
                                 </span>
-                                <button
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
                                   onClick={() =>
                                     copyToClipboard(section.after, index)
                                   }
-                                  className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                                  className="text-xs text-stone-400 hover:text-amber-600"
                                 >
                                   {copiedIndex === index ? (
                                     <>
@@ -722,26 +701,25 @@ const JobAnalysisPanel = () => {
                                       Copy
                                     </>
                                   )}
-                                </button>
+                                </Button>
                               </div>
-                              <div className="bg-green-500/5 rounded-lg p-3 border border-green-500/20">
-                                <p className="text-slate-200 text-sm whitespace-pre-wrap">
+                              <div className="bg-emerald-50 rounded-lg p-4">
+                                <p className="text-sm font-mono text-emerald-800 whitespace-pre-wrap">
                                   {section.after}
                                 </p>
                               </div>
                             </div>
 
-                            {/* Changes Made */}
                             {section.changes.length > 0 && (
-                              <div className="pt-3 border-t border-slate-700">
-                                <span className="text-xs font-medium text-slate-400 mb-2 block">
+                              <div className="pt-3 border-t border-stone-100">
+                                <span className="text-xs font-medium text-stone-500 mb-2 block">
                                   Changes Made:
                                 </span>
                                 <ul className="list-disc list-inside space-y-1">
                                   {section.changes.map((change, i) => (
                                     <li
                                       key={i}
-                                      className="text-xs text-slate-400"
+                                      className="text-xs text-stone-700"
                                     >
                                       {change}
                                     </li>
@@ -750,16 +728,15 @@ const JobAnalysisPanel = () => {
                               </div>
                             )}
 
-                            {/* Keywords Added */}
                             {section.keywords_added.length > 0 && (
-                              <div className="flex flex-wrap gap-1.5 pt-3 border-t border-slate-700">
-                                <span className="text-xs text-slate-500 mr-2">
+                              <div className="flex flex-wrap gap-1.5 pt-3 border-t border-stone-100">
+                                <span className="text-xs text-stone-500 mr-2">
                                   Keywords added:
                                 </span>
                                 {section.keywords_added.map((keyword, i) => (
                                   <span
                                     key={i}
-                                    className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-md"
+                                    className="bg-amber-50 text-amber-700 text-xs rounded-full px-2 py-0.5"
                                   >
                                     {keyword}
                                   </span>
@@ -770,14 +747,14 @@ const JobAnalysisPanel = () => {
                         </motion.div>
                       )}
                     </AnimatePresence>
-                  </div>
-                )
+                  </Card>
+                ),
               )}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </Card>
   );
 };
 

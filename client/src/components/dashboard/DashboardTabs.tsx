@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import Card from "../ui/Card";
+import { Button, Tabs } from "../ui";
 import {
   DocumentTextIcon,
   DocumentArrowUpIcon,
@@ -21,10 +23,11 @@ const DashboardTabs = () => {
   const [activeTab, setActiveTab] = useState("analysis");
   const analysisResults = useStore((state) => state.analysisResults);
   const resumeData = useStore((state) => state.resumeData);
-  const clearCurrentAnalysis = useStore((state) => state.clearCurrentAnalysis);
+  const clearCurrentAnalysis = useStore(
+    (state) => state.clearCurrentAnalysis
+  );
 
   const handleTabClick = (tabId: string) => {
-    // Check if tab requires resume and if no resume is uploaded
     const tabsNeedingResume = ["analysis", "job-analysis", "career-map"];
 
     if (tabsNeedingResume.includes(tabId) && !resumeData) {
@@ -77,15 +80,15 @@ const DashboardTabs = () => {
         return analysisResults ? (
           <AnalysisResults analysisResults={analysisResults} />
         ) : (
-          <div className="card p-8 text-center">
-            <DocumentTextIcon className="h-16 w-16 mx-auto text-slate-600 mb-4" />
-            <h3 className="text-xl font-medium text-slate-400 mb-2">
+          <Card padding="lg" className="text-center">
+            <DocumentTextIcon className="h-16 w-16 mx-auto text-stone-300 mb-4" />
+            <h3 className="text-xl font-medium text-stone-600 mb-2">
               No Analysis Available
             </h3>
-            <p className="text-slate-500">
+            <p className="text-stone-400">
               Upload and analyze your resume to see results here.
             </p>
-          </div>
+          </Card>
         );
 
       case "job-analysis":
@@ -107,26 +110,25 @@ const DashboardTabs = () => {
 
   return (
     <div>
-      {/* Current Resume Context */}
       {resumeData && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          className="mb-6 p-4 bg-slate-900/50 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center gap-4"
+          className="mb-6 p-4 bg-white border border-stone-200 rounded-xl flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm"
         >
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className="p-2 bg-blue-500/10 rounded-lg flex-shrink-0">
-              <DocumentArrowUpIcon className="h-6 w-6 text-blue-400" />
+            <div className="p-2 bg-amber-50 rounded-lg flex-shrink-0">
+              <DocumentArrowUpIcon className="h-6 w-6 text-amber-600" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-2 mb-1">
-                <h4 className="text-slate-200 font-medium">Current Resume</h4>
-                <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full truncate max-w-[200px]">
+                <h4 className="text-stone-800 font-medium">Current Resume</h4>
+                <span className="px-2 py-1 bg-emerald-50 text-emerald-600 text-xs rounded-full truncate max-w-[200px] border border-emerald-200">
                   {resumeData.file?.name || "Resume Uploaded"}
                 </span>
               </div>
-              <p className="text-slate-400 text-sm truncate">
+              <p className="text-stone-400 text-sm truncate">
                 {resumeData.rawText
                   ? `${resumeData.rawText.substring(0, 100)}...`
                   : "Resume content preview"}
@@ -134,57 +136,36 @@ const DashboardTabs = () => {
             </div>
           </div>
 
-          <button
+          <Button
+            variant="danger-outline"
+            size="sm"
             onClick={clearCurrentAnalysis}
-            className="px-3 py-2 bg-red-600/10 hover:bg-red-600/20 text-red-400 hover:text-red-300 rounded-lg text-sm font-medium transition-colors border border-red-600/20 hover:border-red-600/40 flex-shrink-0 w-full sm:w-auto"
+            className="flex-shrink-0 w-full sm:w-auto"
           >
             Clear Resume
-          </button>
+          </Button>
         </motion.div>
       )}
 
-      {/* Tab Navigation */}
-      <div className="border-b border-slate-800 mb-6">
-        <nav className="flex space-x-1 overflow-x-auto pb-0 custom-scrollbar-thin">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            const isDisabled = tab.disabled;
-
-            return (
-              <button
-                key={tab.id}
-                onClick={() => handleTabClick(tab.id)}
-                disabled={isDisabled}
-                className={`
-                  flex items-center px-4 py-3 text-sm font-medium rounded-t-lg transition-all relative group
-                  ${
-                    isActive
-                      ? "bg-slate-800 text-white border-l border-r border-t border-slate-700"
-                      : isDisabled
-                      ? "text-slate-600 cursor-not-allowed"
-                      : "text-slate-400 hover:text-white hover:bg-slate-800/50"
-                  }
-                `}
-                title={isDisabled ? "Upload a resume first" : undefined}
-              >
-                <Icon className="h-5 w-5 mr-2" />
+      {/* Pill-style Tab Navigation */}
+      <div className="mb-6">
+        <Tabs
+          variant="pill"
+          tabs={tabs.map((tab) => ({
+            id: tab.id,
+            label: (
+              <>
+                <tab.icon className="h-4 w-4 mr-1.5" />
                 {tab.name}
-                {isActive && (
-                  <motion.div
-                    layoutId="activeTab"
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500"
-                    initial={false}
-                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                  />
-                )}
-              </button>
-            );
-          })}
-        </nav>
+              </>
+            ),
+            disabled: tab.disabled,
+          }))}
+          activeTab={activeTab}
+          onTabChange={handleTabClick}
+        />
       </div>
 
-      {/* Tab Content */}
       <AnimatePresence mode="wait">
         <motion.div
           key={activeTab}
@@ -197,7 +178,6 @@ const DashboardTabs = () => {
         </motion.div>
       </AnimatePresence>
 
-      {/* Info Message for Users without Resume */}
       {!resumeData && (
         <motion.div
           initial={{ opacity: 0, x: 20 }}
@@ -205,13 +185,13 @@ const DashboardTabs = () => {
           transition={{ duration: 0.3, delay: 0.2 }}
           className="fixed top-20 right-6 max-w-sm hidden sm:block z-50"
         >
-          <div className="bg-slate-900/95 backdrop-blur-sm border border-slate-700 rounded-xl p-4 flex items-center gap-3 shadow-2xl">
-            <InformationCircleIcon className="h-5 w-5 text-blue-400 flex-shrink-0" />
+          <div className="bg-white/95 backdrop-blur-sm border border-stone-200 rounded-xl p-4 flex items-center gap-3 shadow-lg">
+            <InformationCircleIcon className="h-5 w-5 text-amber-500 flex-shrink-0" />
             <div className="flex-1">
-              <p className="text-slate-200 text-sm font-medium">
+              <p className="text-stone-800 text-sm font-medium">
                 Ready to analyze your resume?
               </p>
-              <p className="text-slate-400 text-xs">
+              <p className="text-stone-400 text-xs">
                 Upload a PDF resume from the main dashboard to access all
                 features
               </p>

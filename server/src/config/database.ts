@@ -1,13 +1,13 @@
 import { Pool, PoolConfig } from "pg";
-import * as dotenv from "dotenv";
 import { requireEnv } from "../utils";
-
-dotenv.config();
 
 const DATABASE_URL = requireEnv("DATABASE_URL");
 
 const config: PoolConfig = {
   connectionString: DATABASE_URL,
+  max: parseInt(process.env.DB_POOL_MAX ?? "10", 10),
+  idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT_MS ?? "30000", 10),
+  connectionTimeoutMillis: parseInt(process.env.DB_CONNECT_TIMEOUT_MS ?? "5000", 10),
 };
 
 // Create a connection pool to manage multiple database connections efficiently.

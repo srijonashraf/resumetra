@@ -1,6 +1,7 @@
 import { OAuth2Client } from "google-auth-library";
 import jwt, { type JwtPayload, type SignOptions } from "jsonwebtoken";
 import { requireEnv } from "../utils";
+import { AuthenticationError } from "../errors";
 import type { GoogleProfile } from "./userService";
 
 // ==================== TYPE DEFINITIONS ====================
@@ -35,7 +36,7 @@ export const verifyGoogleIdToken = async (
   const payload = ticket.getPayload();
 
   if (!payload || !payload.sub) {
-    throw new Error("Invalid Google ID token payload");
+    throw new AuthenticationError("Invalid Google ID token payload");
   }
 
   return {
