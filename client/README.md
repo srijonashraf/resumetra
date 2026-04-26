@@ -40,9 +40,10 @@ An AI-powered resume analyzer dashboard built with React, TypeScript, and Tailwi
    npm install
    ```
 
-3. Create a `.env` file in the root directory and add your Gemini API key:
+3. Create a `.env` file in the root directory and add your necessary keys:
    ```
-   VITE_GEMINI_API_KEY=your_gemini_api_key_here
+   VITE_API_URL=your_api_url_here
+   VITE_GOOGLE_CLIENT_ID=your_google_client_id_here
    ```
 
 4. Start the development server:
