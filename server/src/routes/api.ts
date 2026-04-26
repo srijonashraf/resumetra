@@ -1,4 +1,5 @@
 import express from "express";
+import rateLimit from "express-rate-limit";
 import {
   requireAuth,
   optionalAuth,
@@ -15,12 +16,13 @@ import {
   generateCareerMap,
   tailorResume,
   MODEL,
-  type CoreAnalysisData,
   type ResumeAnalysisError,
   type TokenUsage,
 } from "../services/aiService";
 import {
   createAnalysis,
+  getCachedCareerMap,
+  saveCareerMap,
   deleteAnalysis,
   getAnalysisContext,
   getExperienceLevelProgression,
@@ -33,11 +35,29 @@ import {
   saveTokenUsage,
 } from "../services/historyService";
 import type { ResumeAnalysisSuccess } from "../services/aiService";
-import { upsertUserFromGoogleProfile } from "../services/userService";
+import { upsertUserFromGoogleProfile, incrementAnalysisCount } from "../services/userService";
 import { NotFoundError, ValidationError } from "../errors";
 import pool from "../config/database";
 
 const router = express.Router();
+
+const USER_ANALYSIS_LIMIT = parseInt(process.env.USER_ANALYSIS_LIMIT || "10", 10);
+
+/**
+ * AI-specific rate limiter: 100 requests per minute per IP.
+ * On exceed, client must wait 5 minutes before retrying.
+ */
+const aiRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many AI requests. Please wait 5 minutes before trying again." },
+  handler: (_req, res) => {
+    res.setHeader("Retry-After", "300");
+    res.status(429).json({ error: "Too many AI requests. Please wait 5 minutes before trying again." });
+  },
+});
 
 // ==================== TYPE GUARDS ====================
 
@@ -115,6 +135,7 @@ router.get(
 
 router.post(
   "/analyze",
+  aiRateLimiter,
   optionalAuth,
   validateResume,
   async (req: AuthRequest, res) => {
@@ -130,8 +151,26 @@ router.post(
     const userId = req.user?.id ?? null;
     const tokenRecords: { phase: string; usage: TokenUsage }[] = [];
 
+    // Enforce per-user analysis limit for authenticated users
+    if (userId) {
+      const countResult = await pool.query(
+        "SELECT analysis_count FROM users WHERE id = $1",
+        [userId],
+      );
+      const count = Number(countResult.rows[0].analysis_count);
+      if (count >= USER_ANALYSIS_LIMIT) {
+        sendSSE("error", {
+          error: `Analysis limit reached (${USER_ANALYSIS_LIMIT}). You have used all your analyses.`,
+          limit: USER_ANALYSIS_LIMIT,
+        });
+        res.end();
+        return;
+      }
+    }
+
     try {
       const { resumeText, sourceType, originalFileName } = req.body;
+      const startTime = Date.now();
 
       const scoringCall = await parseAndScore(resumeText);
       tokenRecords.push({ phase: "scoring", usage: scoringCall.usage });
@@ -182,6 +221,8 @@ router.post(
       // Persist structured analysis for authenticated users
       if (userId) {
         try {
+          await incrementAnalysisCount(userId);
+
           const entry = await createAnalysis({
             user_id: userId,
             resume_text: resumeText,
@@ -189,6 +230,7 @@ router.post(
             original_file_name: originalFileName,
             ai_result: fullResult as ResumeAnalysisSuccess,
             ai_model_version: MODEL,
+            processing_time_ms: Date.now() - startTime,
           });
           response.analysisId = entry.analysis.id;
         } catch (dbError) {
@@ -231,10 +273,33 @@ router.post(
   },
 );
 
+// ==================== USAGE ROUTES ====================
+
+router.get(
+  "/usage",
+  requireAuth,
+  asyncHandler(async (req: AuthRequest, res) => {
+    const userId = req.user!.id;
+    const countResult = await pool.query(
+      "SELECT analysis_count FROM users WHERE id = $1",
+      [userId],
+    );
+    const used = Number(countResult.rows[0].analysis_count);
+    res.json({
+      data: {
+        used,
+        limit: USER_ANALYSIS_LIMIT,
+        remaining: Math.max(USER_ANALYSIS_LIMIT - used, 0),
+      },
+    });
+  }),
+);
+
 // ==================== AUTHENTICATED ANALYSIS ROUTES ====================
 
 router.post(
   "/job-match",
+  aiRateLimiter,
   requireAuth,
   asyncHandler(async (req: AuthRequest, res) => {
     const { analysisId, jobDescription } = req.body;
@@ -246,6 +311,12 @@ router.post(
 
     if (!jobDescription || typeof jobDescription !== "string") {
       throw new ValidationError("jobDescription is required");
+    }
+
+    if (jobDescription.trim().length < 50) {
+      throw new ValidationError(
+        "Job description is too short. Please provide a complete job posting with requirements and responsibilities.",
+      );
     }
 
     if (jobDescription.length > 10000) {
@@ -283,6 +354,7 @@ router.post(
 
 router.post(
   "/tailor",
+  aiRateLimiter,
   requireAuth,
   asyncHandler(async (req: AuthRequest, res) => {
     const { analysisId, resumeText, jobDescription } = req.body;
@@ -304,6 +376,12 @@ router.post(
 
     if (!jobDescription || typeof jobDescription !== "string") {
       throw new ValidationError("jobDescription is required");
+    }
+
+    if (jobDescription.trim().length < 50) {
+      throw new ValidationError(
+        "Job description is too short. Please provide a complete job posting with requirements and responsibilities.",
+      );
     }
 
     if (jobDescription.length > 10000) {
@@ -342,6 +420,7 @@ router.post(
 
 router.post(
   "/career-map",
+  aiRateLimiter,
   requireAuth,
   asyncHandler(async (req: AuthRequest, res) => {
     const { analysisId } = req.body;
@@ -351,12 +430,25 @@ router.post(
       throw new ValidationError("analysisId is required");
     }
 
+    // Return cached result if already generated
+    const cached = await getCachedCareerMap(analysisId, userId);
+    if (cached) {
+      res.json({
+        data: cached,
+        metadata: { cached: true },
+      });
+      return;
+    }
+
     const context = await getAnalysisContext(analysisId, userId);
     if (!context) {
       throw new NotFoundError("Analysis");
     }
 
     const { data: result, usage } = await generateCareerMap(context);
+
+    // Persist the generated career map
+    await saveCareerMap(analysisId, userId, result);
 
     await saveTokenUsage([
       {

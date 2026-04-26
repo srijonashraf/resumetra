@@ -52,7 +52,7 @@ const Hero = () => (
             </a>
           </div>
           <p className="text-sm text-stone-400 mt-4">
-            No sign-up required. No data stored.
+            No sign-up required. Try free with one analysis.
           </p>
         </AnimatedSection>
 

@@ -9,7 +9,7 @@ export interface AnalysisResult {
   analysisId?: string;
   overallScore: number;
   scores: {
-    /** 0–10 scale (derived from atsCompatibility.score / 10). Used by radar chart. */
+    /** 0–10 scale. Used by radar chart and score cards. */
     atsCompatibility: number;
     contentQuality: number;
     impact: number;
@@ -95,7 +95,7 @@ export interface AnalysisResult {
     };
   };
   atsCompatibility: {
-    /** 0–100 scale. Used by progress bar. scores.atsCompatibility = this / 10 */
+    /** 0–100 scale. Used by progress bar. DB stores 0-10; this is multiplied by 10. */
     score: number;
     issues: string[];
   };
@@ -226,6 +226,7 @@ interface StoreState {
   jobDescription: string;
   isGuest: boolean;
   guestMessage: string | null;
+  usage: { used: number; limit: number; remaining: number } | null;
   setResumeData: (data: ResumeData) => void;
   setAnalysisResults: (results: AnalysisResult) => void;
   setAnalysisPhase: (phase: StoreState["analysisPhase"]) => void;
@@ -236,6 +237,7 @@ interface StoreState {
   clearCurrentAnalysis: () => void;
   removeFromHistory: (id: string) => void;
   setGuestMode: (isGuest: boolean, message?: string) => void;
+  setUsage: (usage: { used: number; limit: number; remaining: number } | null) => void;
 }
 
 const useStore = create<StoreState>()((set) => ({
@@ -247,6 +249,7 @@ const useStore = create<StoreState>()((set) => ({
   jobDescription: "",
   isGuest: false,
   guestMessage: null,
+  usage: null,
   setResumeData: (data) => set({ resumeData: data }),
   setAnalysisResults: (results) => set({ analysisResults: results }),
   setAnalysisPhase: (phase) => set({ analysisPhase: phase }),
@@ -272,6 +275,7 @@ const useStore = create<StoreState>()((set) => ({
     })),
   setGuestMode: (isGuest, message) =>
     set({ isGuest, guestMessage: message || null }),
+  setUsage: (usage) => set({ usage }),
 }));
 
 export { useStore };

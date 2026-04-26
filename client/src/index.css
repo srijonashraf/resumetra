@@ -28,3 +28,9 @@ h1, h2, h3, h4, h5, h6 {
 ::-webkit-scrollbar-thumb { background: #D6D3D1; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #A8A29E; }
 * { scrollbar-width: thin; scrollbar-color: #D6D3D1 #F5F5F4; }
+
+/* AI-style pulse animation for Spinner */
+@keyframes aiPulse {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
+}

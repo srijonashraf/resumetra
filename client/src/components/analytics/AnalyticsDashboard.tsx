@@ -10,14 +10,13 @@ import {
   ChartBarIcon,
   ArrowTrendingUpIcon,
   AcademicCapIcon,
-  ArrowPathIcon,
   LockClosedIcon,
 } from "@heroicons/react/24/outline";
 import SkillTrendsChart from "./charts/SkillTrendsChart";
 import ExperienceProgressionChart from "./charts/ExperienceProgressionChart";
 import ScoreCard from "../ui/ScoreCard";
 import Card from "../ui/Card";
-import { Button } from "../ui";
+import { Button, Spinner } from "../ui";
 import { useAuth } from "../../hooks/useAuth";
 import { HistorySummary, SkillGapTrend } from "../../store/useStore";
 
@@ -82,7 +81,7 @@ const AnalyticsDashboard = () => {
             to="/login"
             className="inline-flex items-center px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg transition-colors"
           >
-            Login to View Analytics
+            Sign In to View Analytics
           </Link>
         </Card>
       </motion.div>
@@ -98,8 +97,8 @@ const AnalyticsDashboard = () => {
       >
         <Card>
           <div className="flex items-center justify-center py-12">
-            <ArrowPathIcon className="h-8 w-8 animate-spin text-amber-600" />
-            <span className="ml-3 text-stone-500">Loading analytics...</span>
+            <Spinner size="md" className="mr-3" />
+            <span className="text-stone-500">Loading analytics...</span>
           </div>
         </Card>
       </motion.div>
@@ -115,7 +114,7 @@ const AnalyticsDashboard = () => {
       >
         <Card>
           <div className="text-center py-8">
-            <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg">
+            <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg space-y-2">
               <p>{error}</p>
               <Button
                 variant="danger"

@@ -1,7 +1,7 @@
 import {
   LockClosedIcon,
   ShieldCheckIcon,
-  ClockIcon,
+  TrashIcon,
   UserIcon,
 } from "@heroicons/react/24/outline";
 import AnimatedSection from "../ui/AnimatedSection";
@@ -9,18 +9,21 @@ import AnimatedSection from "../ui/AnimatedSection";
 const trustIndicators = [
   {
     icon: ShieldCheckIcon,
-    title: "No Data Stored",
-    description: "Your resume text is processed and immediately discarded",
+    title: "Raw Text Never Stored",
+    description:
+      "Your original resume text is processed and discarded. We only store parsed insights if you create an account.",
   },
   {
-    icon: ClockIcon,
-    title: "Session Only",
-    description: "Analysis results exist only during your active session",
+    icon: TrashIcon,
+    title: "You Can Delete Your Data",
+    description:
+      "Logged-in users can delete any analysis from their history at any time. You stay in control.",
   },
   {
     icon: UserIcon,
-    title: "Your Data, Your Control",
-    description: "No third-party sharing, no data selling, ever",
+    title: "No Data Selling",
+    description:
+      "We never sell, share, or distribute your data. Period. Your resume insights are yours alone.",
   },
 ];
 
@@ -30,12 +33,12 @@ const Privacy = () => (
       <AnimatedSection>
         <LockClosedIcon className="w-16 h-16 text-amber-600 mx-auto" />
         <h2 className="mt-6 text-3xl md:text-4xl font-bold font-heading text-stone-900">
-          Your Resume Never Touches Our Servers
+          Your Privacy, Honestly
         </h2>
         <p className="mt-6 text-stone-500 text-lg max-w-2xl mx-auto">
-          We analyze your resume in real-time and never store your data. Your
-          personal information, work history, and skills remain completely
-          private.
+          No sign-up needed to try Resumetra — one free analysis, no strings
+          attached. If you create an account, we save your analysis history so
+          you can track improvement over time. You can delete any entry anytime.
         </p>
       </AnimatedSection>
 

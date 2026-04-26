@@ -10,6 +10,7 @@ export interface User {
   email: string | null;
   name: string | null;
   picture: string | null;
+  analysis_count: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -35,6 +36,7 @@ export const findUserById = async (id: string): Promise<User | null> => {
       email,
       name,
       picture,
+      analysis_count,
       created_at,
       updated_at
     FROM users
@@ -46,7 +48,7 @@ export const findUserById = async (id: string): Promise<User | null> => {
     return result.rows[0] || null;
   } catch (error) {
     console.error("Error fetching user by id:", error);
-    throw new DatabaseError("Failed to fetch user", { cause: error });
+    throw new DatabaseError("Failed to fetch user", { details: error });
   }
 };
 
@@ -63,6 +65,7 @@ const findUserByGoogleSub = async (
       email,
       name,
       picture,
+      analysis_count,
       created_at,
       updated_at
     FROM users
@@ -74,7 +77,7 @@ const findUserByGoogleSub = async (
     return result.rows[0] || null;
   } catch (error) {
     console.error("Error fetching user by google_sub:", error);
-    throw new DatabaseError("Failed to fetch user", { cause: error });
+    throw new DatabaseError("Failed to fetch user", { details: error });
   }
 };
 
@@ -95,7 +98,7 @@ export const upsertUserFromGoogleProfile = async (
         name = COALESCE($3, name),
         picture = COALESCE($4, picture)
       WHERE google_sub = $1
-      RETURNING id, google_sub, email, name, picture, created_at, updated_at
+      RETURNING id, google_sub, email, name, picture, analysis_count, created_at, updated_at
     `;
 
     const values = [
@@ -110,7 +113,7 @@ export const upsertUserFromGoogleProfile = async (
       return result.rows[0];
     } catch (error) {
       console.error("Error updating user from Google profile:", error);
-      throw new DatabaseError("Failed to update user", { cause: error });
+      throw new DatabaseError("Failed to update user", { details: error });
     }
   }
 
@@ -122,7 +125,7 @@ export const upsertUserFromGoogleProfile = async (
       picture
     )
     VALUES ($1, $2, $3, $4)
-    RETURNING id, google_sub, email, name, picture, created_at, updated_at
+    RETURNING id, google_sub, email, name, picture, analysis_count, created_at, updated_at
   `;
 
   const values = [
@@ -137,6 +140,26 @@ export const upsertUserFromGoogleProfile = async (
     return result.rows[0];
   } catch (error) {
     console.error("Error creating user from Google profile:", error);
-    throw new DatabaseError("Failed to create user", { cause: error });
+    throw new DatabaseError("Failed to create user", { details: error });
+  }
+};
+
+/**
+ * Increment analysis_count for a user. Call only after successful AI analysis.
+ */
+export const incrementAnalysisCount = async (userId: string): Promise<number> => {
+  const query = `
+    UPDATE users
+    SET analysis_count = analysis_count + 1
+    WHERE id = $1
+    RETURNING analysis_count
+  `;
+
+  try {
+    const result = await pool.query(query, [userId]);
+    return result.rows[0].analysis_count;
+  } catch (error) {
+    console.error("Error incrementing analysis count:", error);
+    throw new DatabaseError("Failed to increment analysis count", { details: error });
   }
 };

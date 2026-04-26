@@ -13,6 +13,8 @@ import {
 // ==================== CLIENT SETUP ====================
 
 const apiKey = process.env.OPENAI_API_KEY;
+const baseURL = process.env.OPENAI_BASE_URL || "https://openrouter.ai/api/v1";
+const model = process.env.OPENAI_MODEL || "openrouter/free";
 
 if (!apiKey) {
   throw new ExternalServiceError(
@@ -22,10 +24,10 @@ if (!apiKey) {
 
 const client = new OpenAI({
   apiKey,
-  baseURL: process.env.OPENAI_BASE_URL,
+  baseURL,
 });
 
-export const MODEL = process.env.OPENAI_MODEL || "openrouter/free";
+export const MODEL: string = model;
 
 // ==================== TYPE DEFINITIONS ====================
 
@@ -267,6 +269,9 @@ export interface AiResult<T> {
 const cleanJSON = (text: string): string => {
   let cleaned = text.trim();
 
+  // Strip <thought>...</thought> blocks (thinking model output)
+  cleaned = cleaned.replace(/<thought>[\s\S]*?<\/thought>/gi, "");
+
   // Strip markdown code blocks
   cleaned = cleaned.replace(/```(?:json)?\n?/g, "").replace(/\n?```/g, "");
 
@@ -312,15 +317,14 @@ const generateJson = async <T>(
 
   if (!text) {
     throw new ExternalServiceError("AI returned empty response", {
-      model: MODEL,
-      finishReason,
+      details: { model: MODEL, finishReason },
     });
   }
 
   if (finishReason === "length") {
     throw new ExternalServiceError(
       "AI response truncated (max_tokens reached)",
-      { model: MODEL },
+      { details: { model: MODEL } },
     );
   }
 
@@ -348,7 +352,7 @@ const generateJson = async <T>(
     );
     throw new ExternalServiceError(
       "AI response validation failed after retry",
-      { model: MODEL, cause: parseError },
+      { details: { model: MODEL, cause: parseError } },
     );
   }
 };
@@ -365,7 +369,7 @@ export const parseAndScore = async (
   const currentDate = new Date().toISOString().split("T")[0];
 
   const prompt = `
-IMPORTANT CONTEXT: Today's date is ${currentDate}. Use this date when calculating experience durations for positions marked as "Present", "Current", or "Ongoing".
+IMPORTANT CONTEXT: Today's date is ${currentDate}. Any position with endDate "Present", "Current", "Ongoing", or "Now" is STILL ACTIVE — do NOT assign a future or arbitrary end date. Use "${currentDate}" for calculations involving active positions.
 
 You are a Senior Technical Screener with 15+ years of experience in talent acquisition and technical recruitment across FAANG and Fortune 500 companies.
 
@@ -390,7 +394,7 @@ If valid, return this JSON:
     "readability": number (1-10)
   },
   "experienceLevel": "Entry-Level" | "Junior" | "Mid-Level" | "Senior" | "Lead/Principal" | "Executive",
-  "yearsOfExperience": number (sum all durations; "Present" = today ${currentDate}),
+  "yearsOfExperience": number (sum all durations; treat "Present" as "${currentDate}"),
   "metrics": {
     "wordCount": number,
     "pageCount": number (~300-400 words/page),
@@ -420,7 +424,7 @@ If valid, return this JSON:
     "softSkills": string[],
     "jobTitles": string[],
     "education": [{ "institution": string, "degree": string, "field": string, "year": string }],
-    "workExperiences": [{ "company": string, "title": string, "startDate": string, "endDate": string, "description": string }],
+    "workExperiences": [{ "company": string, "title": string, "startDate": string, "endDate": string (use "Present" for active roles — NEVER fabricate an end date), "description": string }],
     "projects": [{ "name": string, "description": string, "technologies": string[] }],
     "certifications": [{ "name": string, "issuer": string, "year": string }]
   },
@@ -490,7 +494,7 @@ Return this JSON:
     "weaknesses": ["top 3-5 weaknesses"],
     "improvementAreas": ["top 3-5 with actionable advice"],
     "missingSkills": ["skills expected for this level but absent"],
-    "redFlags": ["employment gaps, lack of progression, outdated skills, etc."],
+    "redFlags": ["actual concerns only — return empty array [] if none exist, never include placeholder or explanatory text"],
     "suggestions": {
       "immediate": ["2-3 quick wins"],
       "shortTerm": ["next revision improvements"],

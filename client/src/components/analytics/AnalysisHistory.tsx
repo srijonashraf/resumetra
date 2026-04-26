@@ -17,6 +17,7 @@ import Badge from "../ui/Badge";
 import Card from "../ui/Card";
 import { Button } from "../ui";
 import { cn } from "../../utils/cn";
+import { formatScore } from "../../utils/formatScore";
 import { deleteHistoryEntry } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -65,7 +66,7 @@ const AnalysisHistory = () => {
             to="/login"
             className="inline-flex items-center px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg transition-colors"
           >
-            Login to View History
+            Sign In to View History
           </Link>
         </Card>
       </motion.div>
@@ -159,16 +160,16 @@ const AnalysisHistory = () => {
                   {/* Score badges */}
                   <div className="flex gap-2 mt-2">
                     <span className="bg-stone-100 rounded-lg px-2 py-1 text-xs font-medium text-stone-700">
-                      ATS: {entry.analysisResults.scores.atsCompatibility}
+                      ATS: {formatScore(entry.analysisResults.scores.atsCompatibility)}
                     </span>
                     <span className="bg-stone-100 rounded-lg px-2 py-1 text-xs font-medium text-stone-700">
-                      Content: {entry.analysisResults.scores.contentQuality}
+                      Content: {formatScore(entry.analysisResults.scores.contentQuality)}
                     </span>
                     <span className="bg-stone-100 rounded-lg px-2 py-1 text-xs font-medium text-stone-700">
-                      Impact: {entry.analysisResults.scores.impact}
+                      Impact: {formatScore(entry.analysisResults.scores.impact)}
                     </span>
                     <span className="bg-stone-100 rounded-lg px-2 py-1 text-xs font-medium text-stone-700">
-                      Readability: {entry.analysisResults.scores.readability}
+                      Readability: {formatScore(entry.analysisResults.scores.readability)}
                     </span>
                   </div>
                 </div>

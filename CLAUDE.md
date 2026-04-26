@@ -11,12 +11,14 @@ Two-package monorepo: `client/` (React SPA) and `server/` (Express API). No mono
 ## Commands
 
 ### Server (`server/`)
+
 - `npm run dev` — dev server with hot reload (tsx watch + .env)
 - `npm run build` — production build via tsup
 - `npm run start` — run compiled build
 - `npx tsc --noEmit` — type check only
 
 ### Client (`client/`)
+
 - `npm run dev` — Vite dev server (localhost:5173)
 - `npm run build` — tsc type-check + Vite production build
 - `npm run lint` — ESLint
@@ -73,9 +75,11 @@ Single store in `client/src/store/useStore.ts`. Analysis flow state: `analysisPh
 
 ### ATS Dual Score Scale
 
-- `scores.atsCompatibility` — 0-10 scale, used by radar chart
-- `atsCompatibility.score` — 0-100 scale, used by progress bar
-- History transform: `(ats_compatibility_score / 100) * 10` to convert DB value to radar scale
+- `ats_compatibility_score` in DB — 0-10 scale (same as all other radar scores)
+- `scores.atsCompatibility` — 0-10 scale, used by radar chart and score cards
+- `atsCompatibility.score` — 0-100 scale, used by progress bar. Derived: `ats_compatibility_score * 10`
+- All scores rounded to 1 decimal at write time (`sanitizeScoreRange`) and at AVG query time (`ROUND(..., 1)`)
+- Display formatting: `formatScore()` utility in `client/src/utils/formatScore.ts`
 
 ## Key Conventions
 
@@ -91,4 +95,4 @@ Server requires (fail-fast via `requireEnv()`): `PORT`, `DATABASE_URL`, `JWT_SEC
 
 Client requires: `VITE_API_URL` (API base URL), `VITE_GOOGLE_CLIENT_ID`.
 
-AI model config: `OPENAI_BASE_URL` (custom endpoint), `OPENAI_MODEL` (defaults to `openrouter/free`).
+AI model config: `OPENAI_BASE_URL` (defaults to `https://openrouter.ai/api/v1`), `OPENAI_MODEL` (defaults to `openrouter/free`).

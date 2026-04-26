@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { useStore, ResumeData } from "../../store/useStore";
 import { extractTextFromPDF } from "../../utils/pdfUtils";
 import { DocumentArrowUpIcon } from "@heroicons/react/24/outline";
+import Spinner from "../ui/Spinner";
 
 const PdfUploader = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -23,7 +24,7 @@ const PdfUploader = () => {
 
     if (isGuest && resumeData) {
       setError(
-        "You've already used your free analysis. Please login to analyze more resumes."
+        "You've already used your free analysis. Please sign in to analyze more resumes."
       );
       return;
     }
@@ -108,7 +109,7 @@ const PdfUploader = () => {
 
         {isLoading ? (
           <div className="text-stone-600">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600 mx-auto mb-2"></div>
+            <Spinner size="md" className="mb-2" />
             <p>Processing PDF...</p>
           </div>
         ) : (

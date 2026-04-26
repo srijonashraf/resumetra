@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Link } from "react-router-dom";
 import { useStore, TailorResult, TailorSection, JobMatchResult } from "../../store/useStore";
 import { ApiError } from "../../services/errors";
 import { toast } from "sonner";
@@ -12,37 +13,17 @@ import {
   ChevronUpIcon,
   DocumentTextIcon,
   ArrowRightIcon,
+  LockClosedIcon,
 } from "@heroicons/react/24/outline";
 import { compareWithJobDescription, tailorResume } from "../../services/api";
+import { useAuth } from "../../hooks/useAuth";
 import Badge from "../ui/Badge";
 import ScoreCard from "../ui/ScoreCard";
 import Card from "../ui/Card";
-import { Button, Tabs, Textarea } from "../ui";
-
-const Spinner = ({ className = "" }: { className?: string }) => (
-  <svg
-    className={`animate-spin -ml-1 mr-2 h-4 w-4 ${className}`}
-    xmlns="http://www.w3.org/2000/svg"
-    fill="none"
-    viewBox="0 0 24 24"
-  >
-    <circle
-      className="opacity-25"
-      cx="12"
-      cy="12"
-      r="10"
-      stroke="currentColor"
-      strokeWidth="4"
-    />
-    <path
-      className="opacity-75"
-      fill="currentColor"
-      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 10a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 10a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-    />
-  </svg>
-);
+import { Button, Tabs, Textarea, Spinner } from "../ui";
 
 const JobAnalysisPanel = () => {
+  const { isLoggedIn } = useAuth();
   const jobDescription = useStore((state) => state.jobDescription);
   const [jobInput, setJobInput] = useState(jobDescription || "");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -56,6 +37,33 @@ const JobAnalysisPanel = () => {
   const [activeSection, setActiveSection] = useState<"input" | "tailor">(
     "input",
   );
+
+  if (isLoggedIn === false) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+      >
+        <Card padding="xl" className="text-center">
+          <LockClosedIcon className="w-12 h-12 mx-auto text-stone-300 mb-4" />
+          <h3 className="text-xl font-semibold font-heading text-stone-900 mb-2">
+            Sign in to use Job Analysis &amp; Resume Tailoring
+          </h3>
+          <p className="text-stone-500 mb-6 max-w-md mx-auto">
+            Sign in to compare your resume against job descriptions and get
+            AI-powered tailored rewrites for each section.
+          </p>
+          <Link
+            to="/login"
+            className="inline-flex items-center px-6 py-3 bg-amber-600 text-white font-medium rounded-lg hover:bg-amber-700 transition-colors"
+          >
+            Sign In to Continue
+          </Link>
+        </Card>
+      </motion.div>
+    );
+  }
 
   const getMatchBadgeVariant = (score: number): "success" | "info" | "warning" | "danger" => {
     if (score >= 86) return "success";

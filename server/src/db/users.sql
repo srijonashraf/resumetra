@@ -4,6 +4,7 @@ create table public.users (
   email text null,
   name text null,
   picture text null,
+  analysis_count integer not null default 0,
   created_at timestamp with time zone not null default timezone ('utc'::text, now()),
   updated_at timestamp with time zone not null default timezone ('utc'::text, now()),
 

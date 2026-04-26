@@ -240,10 +240,10 @@ const mapAiResultToTables = (
     metrics: {
       overall_score: sanitizeScoreRange(ai.overallScore, 1, 10, 1),
       ats_compatibility_score: sanitizeScoreRange(
-        ai.scores.atsCompatibility ?? ai.atsCompatibility?.score ?? 50,
+        ai.scores.atsCompatibility ?? ai.atsCompatibility?.score ?? 5,
         1,
-        100,
-        50,
+        10,
+        5,
       ),
       content_quality_score: sanitizeScoreRange(
         ai.scores.contentQuality ?? 5,
@@ -638,7 +638,7 @@ export const createAnalysis = async (
   } catch (error) {
     await client.query("ROLLBACK");
     console.error("Error creating analysis:", error);
-    throw new DatabaseError("Failed to create analysis", { cause: error });
+    throw new DatabaseError("Failed to create analysis", { details: error });
   } finally {
     client.release();
   }
@@ -665,7 +665,7 @@ export const getUserHistory = async (
   } catch (error) {
     console.error("Error fetching user history:", error);
     throw new DatabaseError("Failed to fetch analysis history", {
-      cause: error,
+      details: error,
     });
   }
 };
@@ -682,7 +682,7 @@ export const getUserHistoryCount = async (userId: string): Promise<number> => {
   } catch (error) {
     console.error("Error counting user history:", error);
     throw new DatabaseError("Failed to count analysis history", {
-      cause: error,
+      details: error,
     });
   }
 };
@@ -705,7 +705,7 @@ export const getAnalysisById = async (
     return mapRowToComposite(result.rows[0]);
   } catch (error) {
     console.error("Error fetching analysis by ID:", error);
-    throw new DatabaseError("Failed to fetch analysis", { cause: error });
+    throw new DatabaseError("Failed to fetch analysis", { details: error });
   }
 };
 
@@ -808,11 +808,11 @@ export const getUserHistorySummary = async (
   const summaryQuery = `
     SELECT
       COUNT(*) as total_analyses,
-      COALESCE(AVG(rm.overall_score), 0) as average_overall_score,
-      COALESCE(AVG(rm.ats_compatibility_score), 0) as average_ats_score,
-      COALESCE(AVG(rm.content_quality_score), 0) as average_content_quality_score,
-      COALESCE(AVG(rm.impact_score), 0) as average_impact_score,
-      COALESCE(AVG(rm.readability_score), 0) as average_readability_score,
+      COALESCE(ROUND(AVG(rm.overall_score), 1), 0) as average_overall_score,
+      COALESCE(ROUND(AVG(rm.ats_compatibility_score), 1), 0) as average_ats_score,
+      COALESCE(ROUND(AVG(rm.content_quality_score), 1), 0) as average_content_quality_score,
+      COALESCE(ROUND(AVG(rm.impact_score), 1), 0) as average_impact_score,
+      COALESCE(ROUND(AVG(rm.readability_score), 1), 0) as average_readability_score,
       MAX(ra.created_at) as latest_analysis
     FROM public.resume_analyses ra
     JOIN public.resume_metrics rm ON rm.analysis_id = ra.id
@@ -822,7 +822,7 @@ export const getUserHistorySummary = async (
   const trendQuery = `
     SELECT
       ra.created_at::date as date,
-      COALESCE(AVG(rm.overall_score), 0) as overall_score
+      COALESCE(ROUND(AVG(rm.overall_score), 1), 0) as overall_score
     FROM public.resume_analyses ra
     JOIN public.resume_metrics rm ON rm.analysis_id = ra.id
     WHERE ra.user_id = $1
@@ -858,7 +858,7 @@ export const getUserHistorySummary = async (
   } catch (error) {
     console.error("Error fetching history summary:", error);
     throw new DatabaseError("Failed to fetch history summary", {
-      cause: error,
+      details: error,
     });
   }
 };
@@ -890,7 +890,7 @@ export const getSkillGapTrends = async (
   } catch (error) {
     console.error("Error fetching skill gap trends:", error);
     throw new DatabaseError("Failed to fetch skill gap trends", {
-      cause: error,
+      details: error,
     });
   }
 };
@@ -920,7 +920,7 @@ export const getExperienceLevelProgression = async (
   } catch (error) {
     console.error("Error fetching experience level progression:", error);
     throw new DatabaseError("Failed to fetch experience progression", {
-      cause: error,
+      details: error,
     });
   }
 };
@@ -951,7 +951,7 @@ export const getHiringRecommendationTrends = async (
   } catch (error) {
     console.error("Error fetching hiring recommendation trends:", error);
     throw new DatabaseError("Failed to fetch hiring recommendation trends", {
-      cause: error,
+      details: error,
     });
   }
 };
@@ -974,7 +974,7 @@ export const deleteAnalysis = async (
     return result.rowCount !== null && result.rowCount > 0;
   } catch (error) {
     console.error("Error deleting analysis:", error);
-    throw new DatabaseError("Failed to delete analysis", { cause: error });
+    throw new DatabaseError("Failed to delete analysis", { details: error });
   }
 };
 
@@ -1032,4 +1032,35 @@ export const saveTokenUsage = async (
       error,
     });
   }
+};
+
+// ==================== CAREER MAP CACHE ====================
+
+/**
+ * Retrieve a cached career map for an analysis, if one exists.
+ * Returns null if not yet generated.
+ */
+export const getCachedCareerMap = async (
+  analysisId: string,
+  userId: string,
+): Promise<unknown | null> => {
+  const result = await pool.query(
+    `SELECT career_map_data FROM public.resume_analyses WHERE id = $1 AND user_id = $2`,
+    [analysisId, userId],
+  );
+  return result.rows[0]?.career_map_data ?? null;
+};
+
+/**
+ * Persist a generated career map result against its analysis.
+ */
+export const saveCareerMap = async (
+  analysisId: string,
+  userId: string,
+  data: unknown,
+): Promise<void> => {
+  await pool.query(
+    `UPDATE public.resume_analyses SET career_map_data = $1, updated_at = now() WHERE id = $2 AND user_id = $3`,
+    [JSON.stringify(data), analysisId, userId],
+  );
 };

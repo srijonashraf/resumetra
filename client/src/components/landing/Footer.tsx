@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import Logo from "../layout/Logo";
 
 const productLinks = [
@@ -7,8 +8,8 @@ const productLinks = [
 ];
 
 const companyLinks = [
-  { label: "Privacy Policy", href: "#" },
-  { label: "Terms of Service", href: "#" },
+  { label: "Privacy Policy", to: "/privacy" },
+  { label: "Terms of Service", to: "/terms" },
 ];
 
 const Footer = () => (
@@ -48,12 +49,12 @@ const Footer = () => (
           <ul className="mt-3 space-y-2">
             {companyLinks.map((link) => (
               <li key={link.label}>
-                <a
-                  href={link.href}
+                <Link
+                  to={link.to}
                   className="text-stone-500 hover:text-amber-600 transition-colors text-sm"
                 >
                   {link.label}
-                </a>
+                </Link>
               </li>
             ))}
           </ul>
@@ -79,7 +80,15 @@ const Footer = () => (
       {/* Bottom row */}
       <div className="mt-8 pt-8 border-t border-stone-200 flex items-center justify-between">
         <p className="text-sm text-stone-400">
-          Made with care by Srijon Ashraf
+          Made with care by{" "}
+          <a
+            href="https://srijonashraf.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline"
+          >
+            Srijon Ashraf
+          </a>
         </p>
         <a
           href="https://github.com/srijonashraf"

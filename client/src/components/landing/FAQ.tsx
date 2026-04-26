@@ -5,12 +5,12 @@ const faqItems = [
   {
     question: "Is Resumetra really free?",
     answer:
-      "Yes, Resumetra is completely free to use. You can analyze your resume, get job matches, and receive tailored suggestions without any cost. We may introduce premium features in the future, but the core analysis will always remain free.",
+      "Yes. You get one free resume analysis without creating an account. If you sign in with Google, you unlock unlimited analyses, job matching, resume tailoring, and full history — all still free.",
   },
   {
     question: "Do you store my resume data?",
     answer:
-      "No. Your resume text is processed in real-time and immediately discarded. We never store, save, or share your personal information, work history, or any content from your resume.",
+      "Guest analyses are processed in real-time and the raw text is never stored. For signed-in users, we save parsed insights (scores, feedback, detected skills) so you can review your history and track improvement. Your original resume text is never stored — only a one-way hash for deduplication. You can delete any analysis from your history at any time.",
   },
   {
     question: "How accurate is the AI analysis?",
@@ -25,12 +25,12 @@ const faqItems = [
   {
     question: "Can I tailor my resume for specific jobs?",
     answer:
-      "Yes! After analyzing your resume, you can paste any job description and our AI will provide section-by-section tailored rewrites to optimize your resume for that specific role.",
+      "Yes! After analyzing your resume, you can paste any job description and our AI will provide section-by-section tailored rewrites to optimize your resume for that specific role. Sign in with Google to unlock this feature.",
   },
   {
     question: "Is my data shared with third parties?",
     answer:
-      "Never. We do not share, sell, or distribute any of your data. Your resume analysis is private and exists only during your active session.",
+      "We never sell, share, or distribute your data. To provide the analysis, your resume text is sent to an AI processing service. Beyond that, your data stays with Resumetra and is never shared with anyone else.",
   },
 ];
 

@@ -1,4 +1,5 @@
 import Card from "./Card";
+import { formatScore } from "../../utils/formatScore";
 
 interface ScoreCardProps {
   title: string;
@@ -76,7 +77,7 @@ export default function ScoreCard({
           dominantBaseline="central"
           className={`${config.fontSize} font-semibold ${getScoreTextColor(score, maxScore)}`}
         >
-          {score}
+          {formatScore(score)}
         </text>
       </svg>
       <p className={`mt-2 font-medium text-stone-700 ${config.titleSize}`}>

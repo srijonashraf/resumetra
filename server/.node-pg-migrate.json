@@ -1,0 +1,6 @@
+{
+  "migrationsDir": "migrations",
+  "migrationsTable": "pgmigrations",
+  "schema": "public",
+  "migrationFileLanguage": "js"
+}

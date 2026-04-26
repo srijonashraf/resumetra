@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useStore, AnalysisResult, AnalysisHistoryEntry } from "../store/useStore";
 import { analyzeResumeStream } from "../services/api";
@@ -7,10 +8,10 @@ import PdfUploader from "../components/upload/PdfUploader";
 import DashboardTabs from "../components/dashboard/DashboardTabs";
 import GuestBanner from "../components/dashboard/GuestBanner";
 import AppShell from "../components/app/AppShell";
-import { fetchUserHistory } from "../services/api";
+import { fetchUserHistory, fetchUsage } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import Card from "../components/ui/Card";
-import { Button } from "../components/ui";
+import { Button, Spinner } from "../components/ui";
 import type { SSEScoringPayload, SSEFeedbackPayload, SSECompletePayload } from "../types";
 
 const DEFAULT_FEEDBACK: AnalysisResult["feedback"] = {
@@ -27,6 +28,7 @@ const DEFAULT_FEEDBACK: AnalysisResult["feedback"] = {
 const Dashboard = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [guestLimitReached, setGuestLimitReached] = useState(false);
 
   const { user } = useAuth();
 
@@ -43,12 +45,18 @@ const Dashboard = () => {
     (state) => state.clearCurrentAnalysis
   );
   const setGuestMode = useStore((state) => state.setGuestMode);
+  const setUsage = useStore((state) => state.setUsage);
+  const usage = useStore((state) => state.usage);
 
   useEffect(() => {
     const loadHistory = async () => {
       try {
-        const historyResult = await fetchUserHistory();
+        const [historyResult, usageData] = await Promise.all([
+          fetchUserHistory(),
+          fetchUsage(),
+        ]);
         setAnalysisHistory(historyResult.data);
+        setUsage(usageData);
       } catch (err) {
         console.error("Failed to load history:", err);
       }
@@ -59,8 +67,9 @@ const Dashboard = () => {
       loadHistory();
     } else {
       setAnalysisHistory([]);
+      setUsage(null);
     }
-  }, [user, setAnalysisHistory, setGuestMode]);
+  }, [user, setAnalysisHistory, setGuestMode, setUsage]);
 
 
   useEffect(() => {
@@ -122,8 +131,15 @@ const Dashboard = () => {
             if (err.status === 429 && (err.data as { requiresLogin?: boolean })?.requiresLogin) {
               setError(err.message);
               setGuestMode(true, err.message);
+              setGuestLimitReached(true);
             } else {
-              setError(err.message);
+              const data = err.data as Record<string, unknown> | undefined;
+              const detectedType = data?.detectedType as string | undefined;
+              setError(
+                detectedType
+                  ? `${err.message} (Detected: ${detectedType})`
+                  : err.message,
+              );
             }
           } else {
             setError("Failed to analyze resume. Please try again.");
@@ -149,6 +165,8 @@ const Dashboard = () => {
 
   const handleNewAnalysis = () => {
     clearCurrentAnalysis();
+    setError(null);
+    setGuestLimitReached(false);
   };
 
   return (
@@ -171,7 +189,18 @@ const Dashboard = () => {
                   feedback to help you improve it.
                 </p>
 
-                <PdfUploader />
+                {usage && usage.remaining === 0 ? (
+                  <div className="text-center py-6">
+                    <p className="text-red-600 font-medium mb-2">
+                      Analysis limit reached ({usage.used}/{usage.limit})
+                    </p>
+                    <p className="text-stone-500 text-sm">
+                      You have used all your analyses. Delete previous analyses to free up slots.
+                    </p>
+                  </div>
+                ) : (
+                  <PdfUploader />
+                )}
               </Card>
             </motion.div>
 
@@ -185,7 +214,7 @@ const Dashboard = () => {
           <div className="space-y-8">
             {isAnalyzing && analysisPhase === "idle" ? (
               <Card padding="xl" className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-600 mx-auto mb-6"></div>
+                <Spinner size="lg" className="mb-6" />
                 <h2 className="text-2xl font-bold text-stone-900 mb-2">
                   Parsing your resume...
                 </h2>
@@ -197,7 +226,7 @@ const Dashboard = () => {
               <div className="space-y-8">
                 <DashboardTabs />
                 <Card padding="md" className="text-center border-amber-200 bg-amber-50">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600 mx-auto mb-3"></div>
+                  <Spinner size="md" className="mb-3" />
                   <h3 className="text-lg font-semibold text-amber-800">
                     Generating detailed feedback...
                   </h3>
@@ -213,12 +242,22 @@ const Dashboard = () => {
                   Analysis Error
                 </h2>
                 <p className="text-red-500 mt-2 mb-6">{error}</p>
-                <Button
-                  variant="danger"
-                  onClick={handleNewAnalysis}
-                >
-                  Try Again
-                </Button>
+                {guestLimitReached ? (
+                  <Link
+                    to="/login"
+                    onClick={handleNewAnalysis}
+                    className="inline-flex items-center px-6 py-3 bg-amber-600 text-white font-medium rounded-lg hover:bg-amber-700 transition-colors"
+                  >
+                    Sign In to Continue
+                  </Link>
+                ) : (
+                  <Button
+                    variant="danger"
+                    onClick={handleNewAnalysis}
+                  >
+                    Try Again
+                  </Button>
+                )}
               </Card>
             ) : (
               <>
@@ -227,6 +266,19 @@ const Dashboard = () => {
                     message={guestMessage}
                     onClose={() => setGuestMode(false)}
                   />
+                )}
+
+                {usage && !isGuest && (
+                  <div className="bg-stone-50 border border-stone-200 rounded-xl px-4 py-2.5 flex items-center justify-between">
+                    <span className="text-sm text-stone-600">
+                      Analyses used: <span className="font-semibold text-stone-900">{usage.used}</span> / {usage.limit}
+                    </span>
+                    {usage.remaining === 0 && (
+                      <span className="text-xs font-medium text-red-600">
+                        Limit reached
+                      </span>
+                    )}
+                  </div>
                 )}
 
                 <DashboardTabs />

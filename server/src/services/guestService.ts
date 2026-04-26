@@ -129,6 +129,6 @@ export const checkGuestUsage = async (
     };
   } catch (error) {
     console.error("Error checking guest usage:", error);
-    throw new DatabaseError("Failed to verify guest usage", { cause: error });
+    throw new DatabaseError("Failed to verify guest usage", { details: error });
   }
 };

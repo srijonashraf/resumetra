@@ -184,9 +184,14 @@ export const compareWithJobDescription = async (
   return response.data.data;
 };
 
-export const generateCareerMap = async (analysisId: string): Promise<CareerMapResult> => {
+export const generateCareerMap = async (
+  analysisId: string,
+): Promise<{ data: CareerMapResult; cached: boolean }> => {
   const response = await api.post("/career-map", { analysisId });
-  return response.data.data;
+  return {
+    data: response.data.data,
+    cached: !!response.data.metadata?.cached,
+  };
 };
 
 export const tailorResume = async (
@@ -228,7 +233,7 @@ const transformCompositeToEntry = (
       analysisId: analysis.id,
       overallScore: metrics.overall_score,
       scores: {
-        atsCompatibility: Math.round((metrics.ats_compatibility_score / 100) * 10 * 10) / 10,
+        atsCompatibility: metrics.ats_compatibility_score,
         contentQuality: metrics.content_quality_score,
         impact: metrics.impact_score,
         readability: metrics.readability_score,
@@ -285,7 +290,7 @@ const transformCompositeToEntry = (
         },
       },
       atsCompatibility: {
-        score: metrics.ats_compatibility_score,
+        score: metrics.ats_compatibility_score * 10,
         issues: metrics.ats_issues,
       },
       metadata: {
@@ -336,6 +341,17 @@ const getExperienceProgression = async (): Promise<ExperienceProgressionResponse
 };
 
 // ==================== Analytics — Enhanced (with transform) ====================
+
+export interface UsageInfo {
+  used: number;
+  limit: number;
+  remaining: number;
+}
+
+export const fetchUsage = async (): Promise<UsageInfo> => {
+  const response = await api.get("/usage");
+  return response.data.data;
+};
 
 export const fetchHistorySummary = async (): Promise<HistorySummary> => {
   const response = await getHistorySummary();

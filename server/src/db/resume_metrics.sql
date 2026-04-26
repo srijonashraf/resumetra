@@ -40,7 +40,7 @@ create table public.resume_metrics (
   constraint resume_metrics_analysis_fkey foreign key (analysis_id)
     references public.resume_analyses (id) on delete cascade,
   constraint check_overall_score          check (overall_score >= 1 and overall_score <= 10),
-  constraint check_ats_score              check (ats_compatibility_score >= 1 and ats_compatibility_score <= 100),
+  constraint check_ats_score              check (ats_compatibility_score >= 1 and ats_compatibility_score <= 10),
   constraint check_content_quality_score  check (content_quality_score >= 1 and content_quality_score <= 10),
   constraint check_impact_score           check (impact_score >= 1 and impact_score <= 10),
   constraint check_readability_score      check (readability_score >= 1 and readability_score <= 10),
