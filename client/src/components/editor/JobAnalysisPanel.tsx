@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
-import { useStore, TailorResult, TailorSection, JobMatchResult } from "../../store/useStore";
+import { useStore, TailorSection, JobMatchResult } from "../../store/useStore";
 import { ApiError } from "../../services/errors";
 import { toast } from "sonner";
 import {
@@ -14,6 +14,7 @@ import {
   DocumentTextIcon,
   ArrowRightIcon,
   LockClosedIcon,
+  PencilSquareIcon,
 } from "@heroicons/react/24/outline";
 import { compareWithJobDescription, tailorResume } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
@@ -29,7 +30,7 @@ const JobAnalysisPanel = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isTailoring, setIsTailoring] = useState(false);
   const [jobMatchResults, setJobMatchResults] = useState<JobMatchResult | null>(null);
-  const [tailorResults, setTailorResults] = useState<TailorResult | null>(null);
+  const tailorResults = useStore((state) => state.tailorResult);
   const [expandedSections, setExpandedSections] = useState<Set<number>>(
     new Set(),
   );
@@ -95,7 +96,7 @@ const JobAnalysisPanel = () => {
 
     try {
       setIsAnalyzing(true);
-      setTailorResults(null);
+      useStore.getState().setTailorResult(null);
 
       const analysisResults = useStore.getState().analysisResults;
       if (!analysisResults) {
@@ -164,7 +165,7 @@ const JobAnalysisPanel = () => {
         resumeData.rawText,
         jobInput,
       );
-      setTailorResults(results);
+      useStore.getState().setTailorResult(results);
       setActiveSection("tailor");
       setExpandedSections(new Set([0]));
 
@@ -579,6 +580,22 @@ const JobAnalysisPanel = () => {
                   </span>
                 </div>
               </div>
+            </div>
+
+            <div className="mt-6 pt-6 border-t border-stone-200">
+              <Button
+                variant="primary"
+                onClick={() => {
+                  useStore.getState().setActiveEditorTab("resume-editor");
+                }}
+                className="w-full"
+              >
+                <PencilSquareIcon className="h-5 w-5 mr-2" />
+                Open in Resume Editor
+              </Button>
+              <p className="text-stone-400 text-sm mt-2 text-center">
+                Edit your tailored resume and download as PDF
+              </p>
             </div>
 
             {/* Overall Strategy */}

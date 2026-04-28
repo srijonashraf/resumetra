@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import Card from "../ui/Card";
@@ -11,11 +11,13 @@ import {
   BriefcaseIcon,
   ClockIcon,
   InformationCircleIcon,
+  PencilSquareIcon,
 } from "@heroicons/react/24/outline";
 import AnalysisHistory from "../analytics/AnalysisHistory";
 import AnalyticsDashboard from "../analytics/AnalyticsDashboard";
 import CareerMap from "../editor/CareerMap";
 import JobAnalysisPanel from "../editor/JobAnalysisPanel";
+import ResumeEditorPanel from "../editor/ResumeEditorPanel";
 import AnalysisResults from "../analytics/AnalysisResults";
 import { useStore } from "../../store/useStore";
 
@@ -26,9 +28,19 @@ const DashboardTabs = () => {
   const clearCurrentAnalysis = useStore(
     (state) => state.clearCurrentAnalysis
   );
+  const tailorResult = useStore((state) => state.tailorResult);
+  const activeEditorTab = useStore((state) => state.activeEditorTab);
+  const setActiveEditorTab = useStore((state) => state.setActiveEditorTab);
+
+  useEffect(() => {
+    if (activeEditorTab) {
+      setActiveTab(activeEditorTab);
+      setActiveEditorTab(null);
+    }
+  }, [activeEditorTab, setActiveEditorTab]);
 
   const handleTabClick = (tabId: string) => {
-    const tabsNeedingResume = ["analysis", "job-analysis", "career-map"];
+    const tabsNeedingResume = ["analysis", "job-analysis", "career-map", "resume-editor"];
 
     if (tabsNeedingResume.includes(tabId) && !resumeData) {
       toast.error("Please upload a resume first to access this feature", {
@@ -59,6 +71,12 @@ const DashboardTabs = () => {
       name: "Career Map",
       icon: AcademicCapIcon,
       disabled: !resumeData,
+    },
+    {
+      id: "resume-editor",
+      name: "Resume Editor",
+      icon: PencilSquareIcon,
+      disabled: !resumeData || !tailorResult,
     },
     {
       id: "analytics",
@@ -96,6 +114,9 @@ const DashboardTabs = () => {
 
       case "career-map":
         return <CareerMap />;
+
+      case "resume-editor":
+        return <ResumeEditorPanel />;
 
       case "analytics":
         return <AnalyticsDashboard />;

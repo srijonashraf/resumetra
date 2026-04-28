@@ -6,6 +6,7 @@ import {
   type AuthRequest,
 } from "../middleware/auth";
 import { validateResume } from "../middleware/validation";
+import { upload } from "../middleware/upload";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { verifyGoogleIdToken, signAppToken } from "../services/authService";
 import { checkGuestUsage } from "../services/guestService";
@@ -35,6 +36,7 @@ import {
   saveTokenUsage,
 } from "../services/historyService";
 import type { ResumeAnalysisSuccess } from "../services/aiService";
+import { runExtractionPipeline } from "../services/pipelineService";
 import { upsertUserFromGoogleProfile, incrementAnalysisCount } from "../services/userService";
 import { NotFoundError, ValidationError } from "../errors";
 import pool from "../config/database";
@@ -268,6 +270,103 @@ router.post(
       sendSSE("error", {
         error: "Failed to analyze resume. Please try again later.",
       });
+      res.end();
+    }
+  },
+);
+
+// ==================== EXTRACTION ROUTE ====================
+
+const PDF_MAGIC = Buffer.from("%PDF-");
+
+function sanitizeFileName(name: string | undefined): string | undefined {
+  if (!name) return undefined;
+  const base = name.replace(/^.*[/\\]/, "");
+  return base.length > 255 ? base.slice(0, 255) : base;
+}
+
+// Conditionally apply multer for multipart uploads
+const conditionalUpload = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const ct = req.headers["content-type"] || "";
+  if (ct.includes("multipart/form-data")) {
+    upload.single("resume")(req, res, next);
+  } else {
+    next();
+  }
+};
+
+router.post(
+  "/extract",
+  aiRateLimiter,
+  optionalAuth,
+  conditionalUpload,
+  async (req: AuthRequest, res) => {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+
+    const sendSSE = (event: string, data: unknown) => {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    const userId = req.user?.id ?? null;
+
+    try {
+      let input: { pdfBuffer?: Buffer; text?: string; userId?: string | null; originalFileName?: string; aiModelVersion?: string };
+
+      if (req.file) {
+        // Multipart upload — validate PDF magic bytes
+        const buffer = req.file.buffer;
+        if (buffer.length < 5 || !buffer.slice(0, 5).equals(PDF_MAGIC)) {
+          sendSSE("error", { error: "File is not a valid PDF." });
+          res.end();
+          return;
+        }
+
+        input = {
+          pdfBuffer: buffer,
+          userId,
+          originalFileName: sanitizeFileName(req.file.originalname),
+          aiModelVersion: MODEL,
+        };
+      } else {
+        // JSON body with text
+        const { resumeText } = req.body;
+        if (!resumeText || typeof resumeText !== "string") {
+          sendSSE("error", { error: "resumeText is required" });
+          res.end();
+          return;
+        }
+        if (resumeText.length > 50000) {
+          sendSSE("error", { error: "Resume text exceeds maximum length (50,000 characters)." });
+          res.end();
+          return;
+        }
+        input = { text: resumeText, userId, aiModelVersion: MODEL };
+      }
+
+      const result = await runExtractionPipeline(input, sendSSE);
+
+      // Increment analysis count for authenticated users
+      if (userId) {
+        try {
+          await incrementAnalysisCount(userId);
+        } catch (dbError) {
+          console.error("Failed to increment analysis count:", dbError);
+        }
+      }
+
+      sendSSE("complete", result);
+      res.end();
+    } catch (error) {
+      if (error instanceof Error && "outcome" in error) {
+        // Validation error — already sent via SSE in pipeline
+        res.end();
+        return;
+      }
+      console.error("Extraction error:", error);
+      sendSSE("error", { error: "Extraction failed. Please try again." });
       res.end();
     }
   },

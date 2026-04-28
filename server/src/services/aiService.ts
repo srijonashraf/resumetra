@@ -357,6 +357,100 @@ const generateJson = async <T>(
   }
 };
 
+// ==================== TOOL CALLING ====================
+
+export interface ToolDefinition {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+}
+
+export async function callTool<T>(
+  messages: OpenAI.ChatCompletionMessageParam[],
+  tools: ToolDefinition[],
+  targetTool: string,
+  schema: z.ZodSchema<T>,
+  maxRetries: number = 1,
+): Promise<AiResult<T>> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await client.chat.completions.create({
+        model: MODEL,
+        messages,
+        tools,
+        tool_choice: { type: "function", function: { name: targetTool } },
+      });
+
+      const message = response.choices[0]?.message;
+      if (!message) {
+        throw new ExternalServiceError("No response from AI model");
+      }
+
+      const toolCalls = message.tool_calls;
+      if (!toolCalls || toolCalls.length === 0) {
+        throw new ExternalServiceError("No tool calls in AI response");
+      }
+
+      const targetCall = toolCalls.find(
+        (tc): tc is OpenAI.ChatCompletionMessageFunctionToolCall =>
+          tc.type === "function" && tc.function.name === targetTool,
+      );
+      if (!targetCall) {
+        const names = toolCalls
+          .filter(
+            (tc): tc is OpenAI.ChatCompletionMessageFunctionToolCall =>
+              tc.type === "function",
+          )
+          .map((tc) => tc.function.name)
+          .join(", ");
+        throw new ExternalServiceError(
+          `Expected tool call '${targetTool}' but got: ${names || "none"}`,
+        );
+      }
+
+      const rawArgs = targetCall.function.arguments;
+      const parsed = JSON.parse(rawArgs);
+      const validated = schema.parse(parsed);
+
+      return {
+        data: validated,
+        usage: {
+          inputTokens: response.usage?.prompt_tokens ?? 0,
+          outputTokens: response.usage?.completion_tokens ?? 0,
+          totalTokens: response.usage?.total_tokens ?? 0,
+        },
+      };
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      if (error instanceof z.ZodError) {
+        throw new ExternalServiceError(
+          `AI tool call '${targetTool}' returned invalid data: ${error.message}`,
+        );
+      }
+
+      if (error instanceof ExternalServiceError) {
+        if (attempt === maxRetries) throw error;
+      }
+
+      if (attempt === maxRetries) {
+        throw new ExternalServiceError(
+          `AI tool call '${targetTool}' failed after ${attempt + 1} attempts: ${lastError.message}`,
+        );
+      }
+    }
+  }
+
+  throw new ExternalServiceError(
+    `AI tool call '${targetTool}' failed: ${lastError?.message}`,
+  );
+}
+
 // ==================== MAIN FUNCTIONS ====================
 
 /**

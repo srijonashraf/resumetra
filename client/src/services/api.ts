@@ -6,6 +6,8 @@ import type {
   SSEScoringPayload,
   SSEFeedbackPayload,
   SSECompletePayload,
+  SSEExtractionProgress,
+  SSEExtractionCompletePayload,
   AnalysisCompositeResponse,
   HistoryListResponse,
   PaginationInfo,
@@ -160,6 +162,105 @@ export const analyzeResumeStream = async (
           break;
         case "complete":
           completeResult = parsed as SSECompletePayload;
+          break;
+        case "error":
+          throw ApiError.fromResponse(400, parsed);
+      }
+    }
+  }
+
+  if (!completeResult) {
+    throw new ApiError(500, "Stream ended without complete event");
+  }
+
+  return completeResult;
+};
+
+// ==================== Extraction — SSE Streaming ====================
+
+export const extractResumeStream = async (
+  input: { file?: File; text?: string },
+  onValidating: () => void,
+  onExtracting: (data: SSEExtractionProgress) => void,
+): Promise<SSEExtractionCompletePayload> => {
+  const token = localStorage.getItem("resumetra_token");
+
+  let response: Response;
+
+  if (input.file) {
+    const formData = new FormData();
+    formData.append("resume", input.file);
+
+    response = await fetch(`${API_URL}/extract`, {
+      method: "POST",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+  } else if (input.text) {
+    response = await fetch(`${API_URL}/extract`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ resumeText: input.text }),
+    });
+  } else {
+    throw new ApiError(400, "Either file or text must be provided");
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw ApiError.fromResponse(response.status, errorData);
+  }
+
+  if (!response.body) {
+    throw new ApiError(500, "No response body");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let completeResult: SSEExtractionCompletePayload | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    const eventBlocks = buffer.split("\n\n");
+    buffer = eventBlocks.pop() || "";
+
+    for (const block of eventBlocks) {
+      if (!block.trim()) continue;
+
+      let eventType = "";
+      let eventData = "";
+
+      for (const line of block.split("\n")) {
+        if (line.startsWith("event: ")) {
+          eventType = line.slice(7).trim();
+        } else if (line.startsWith("data: ")) {
+          eventData = line.slice(6);
+        }
+      }
+
+      if (!eventData) continue;
+
+      const parsed: unknown = JSON.parse(eventData);
+
+      switch (eventType) {
+        case "validating":
+          onValidating();
+          break;
+        case "extracting":
+          onExtracting(parsed as SSEExtractionProgress);
+          break;
+        case "complete":
+          completeResult = parsed as SSEExtractionCompletePayload;
           break;
         case "error":
           throw ApiError.fromResponse(400, parsed);

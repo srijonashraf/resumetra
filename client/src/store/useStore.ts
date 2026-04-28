@@ -190,6 +190,54 @@ export interface TailorResult {
   };
 }
 
+export type ExtractionPhase =
+  | "idle"
+  | "validating"
+  | "extracting"
+  | "complete"
+  | "error";
+
+export interface ExtractionResult {
+  document: {
+    contact: {
+      fullName: string | null;
+      email: string | null;
+      phone: string | null;
+      location: string | null;
+      linkedin: string | null;
+      github: string | null;
+      portfolio: string | null;
+    };
+    sections: Array<{
+      id: string;
+      type: "experience" | "text" | "list" | "table" | "raw";
+      title: string;
+      displayOrder: number;
+      items: Array<{
+        id: string;
+        heading?: string;
+        subheading?: string;
+        dateRange?: string;
+        description?: string;
+        bullets?: string[];
+        items?: string[];
+        rows?: Record<string, string>[];
+        rawText?: string;
+      }>;
+    }>;
+    detectedProfession: string;
+    detectedCareerLevel: string;
+  };
+  profession: { professionId: string; confidence: number };
+  careerLevel: { levelId: string; label: string; totalMonths: number };
+  sectionCoverage: {
+    required: { name: string; present: boolean }[];
+    recommended: { name: string; present: boolean }[];
+    optional: { name: string; present: boolean }[];
+  };
+  analysisId?: string;
+}
+
 export interface AnalysisHistoryEntry {
   id: string;
   date: Date;
@@ -238,6 +286,18 @@ interface StoreState {
   removeFromHistory: (id: string) => void;
   setGuestMode: (isGuest: boolean, message?: string) => void;
   setUsage: (usage: { used: number; limit: number; remaining: number } | null) => void;
+  tailorResult: TailorResult | null;
+  setTailorResult: (result: TailorResult | null) => void;
+  activeEditorTab: string | null;
+  setActiveEditorTab: (tab: string | null) => void;
+  extractionResult: ExtractionResult | null;
+  extractionPhase: ExtractionPhase;
+  extractionProgress: { sectionName: string; index: number; total: number } | null;
+  extractionConfirmed: boolean;
+  setExtractionResult: (result: ExtractionResult | null) => void;
+  setExtractionPhase: (phase: ExtractionPhase) => void;
+  setExtractionProgress: (progress: { sectionName: string; index: number; total: number } | null) => void;
+  setExtractionConfirmed: (confirmed: boolean) => void;
 }
 
 const useStore = create<StoreState>()((set) => ({
@@ -250,6 +310,12 @@ const useStore = create<StoreState>()((set) => ({
   isGuest: false,
   guestMessage: null,
   usage: null,
+  tailorResult: null,
+  activeEditorTab: null,
+  extractionResult: null,
+  extractionPhase: "idle",
+  extractionProgress: null,
+  extractionConfirmed: false,
   setResumeData: (data) => set({ resumeData: data }),
   setAnalysisResults: (results) => set({ analysisResults: results }),
   setAnalysisPhase: (phase) => set({ analysisPhase: phase }),
@@ -268,6 +334,12 @@ const useStore = create<StoreState>()((set) => ({
       jobMatchResults: null,
       jobDescription: "",
       guestMessage: null,
+      tailorResult: null,
+      activeEditorTab: null,
+      extractionResult: null,
+      extractionPhase: "idle",
+      extractionProgress: null,
+      extractionConfirmed: false,
     }),
   removeFromHistory: (id) =>
     set((state) => ({
@@ -276,6 +348,12 @@ const useStore = create<StoreState>()((set) => ({
   setGuestMode: (isGuest, message) =>
     set({ isGuest, guestMessage: message || null }),
   setUsage: (usage) => set({ usage }),
+  setTailorResult: (result) => set({ tailorResult: result }),
+  setActiveEditorTab: (tab) => set({ activeEditorTab: tab }),
+  setExtractionResult: (result) => set({ extractionResult: result }),
+  setExtractionPhase: (phase) => set({ extractionPhase: phase }),
+  setExtractionProgress: (progress) => set({ extractionProgress: progress }),
+  setExtractionConfirmed: (confirmed) => set({ extractionConfirmed: confirmed }),
 }));
 
 export { useStore };

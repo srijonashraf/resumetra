@@ -9,26 +9,20 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 
 /**
  * Extract text from a PDF file
- * @param file PDF file to extract text from
- * @returns Promise resolving to the extracted text
  */
 export const extractTextFromPDF = async (file: File): Promise<string> => {
   try {
-    // Read the file as ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
-
-    // Load the PDF document
     const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
 
-    // Extract text from each page
     let fullText = "";
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
       const pageText = textContent.items
-          .filter((item): item is TextItem => "str" in item)
-          .map((item) => item.str)
-          .join(" ");
+        .filter((item): item is TextItem => "str" in item)
+        .map((item) => item.str)
+        .join(" ");
 
       fullText += pageText + "\n";
     }
@@ -38,4 +32,30 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
     console.error("Error extracting text from PDF:", error);
     throw new Error("Failed to extract text from PDF");
   }
+};
+
+/**
+ * Render PDF pages as data URLs (PNG images) for visual reference.
+ * Returns one data URL per page.
+ */
+export const renderPdfPages = async (file: File): Promise<string[]> => {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+  const dataUrls: string[] = [];
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: 1.5 });
+    const canvas = document.createElement("canvas");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) continue;
+
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    dataUrls.push(canvas.toDataURL("image/png"));
+  }
+
+  return dataUrls;
 };

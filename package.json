@@ -1,0 +1,9 @@
+{
+  "name": "resumetra",
+  "private": true,
+  "workspaces": [
+    "shared",
+    "server",
+    "client"
+  ]
+}

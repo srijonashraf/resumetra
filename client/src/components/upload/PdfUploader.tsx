@@ -1,7 +1,6 @@
 import { useState, useRef } from "react";
 import { motion } from "framer-motion";
-import { useStore, ResumeData } from "../../store/useStore";
-import { extractTextFromPDF } from "../../utils/pdfUtils";
+import { useStore } from "../../store/useStore";
 import { DocumentArrowUpIcon } from "@heroicons/react/24/outline";
 import Spinner from "../ui/Spinner";
 
@@ -9,9 +8,9 @@ const PdfUploader = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const setResumeData = useStore((state) => state.setResumeData);
   const resumeData = useStore((state) => state.resumeData);
   const isGuest = useStore((state) => state.isGuest);
+  const setResumeData = useStore((state) => state.setResumeData);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -33,14 +32,8 @@ const PdfUploader = () => {
     setError(null);
 
     try {
-      const rawText = await extractTextFromPDF(file);
-
-      const resumeData: ResumeData = {
-        file,
-        rawText,
-      };
-
-      setResumeData(resumeData);
+      // Store the file — Dashboard will trigger server-side extraction
+      setResumeData({ file, rawText: "" });
     } catch (err) {
       console.error("Error processing PDF:", err);
       setError("Failed to process PDF. Please try again.");
