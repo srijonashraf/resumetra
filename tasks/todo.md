@@ -7,7 +7,7 @@ Full plan: `tasks/plan.md`
 | # | Task | Status | Depends on |
 |---|------|--------|------------|
 | 1 | T0: Cleanup old `/analyze` pipeline | ✅ | — |
-| 2 | T7: Shared analysis v2 types | ⬜ | T0 |
+| 2 | T7: Shared analysis v2 types | ✅ | T0 |
 | 3 | T1: Deterministic metrics engine | ⬜ | T7 |
 | 4 | T2: ATS scoring engine | ⬜ | T7 |
 | 5 | T3: Analysis agent tools + prompts | ⬜ | T7 |
