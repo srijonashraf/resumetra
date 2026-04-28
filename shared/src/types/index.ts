@@ -11,6 +11,11 @@ export type {
   DeterministicMetrics,
   PartialMatch,
   AtsReport,
+  SectionMetric,
+  SectionIssue,
+  SectionScore,
+  ReadabilityAssessment,
+  AnalysisResultV2,
 } from "./metrics.js";
 export type { TemplateStyle, TemplateConfig } from "./templateConfig.js";
 export type { ValidationOutcome, ValidationResult } from "./validation.js";

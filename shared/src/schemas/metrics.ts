@@ -35,3 +35,46 @@ export const atsReportSchema = z.object({
   partialMatches: z.array(partialMatchSchema),
   sectionCoverage: z.record(z.string(), z.boolean()),
 });
+
+// ── Analysis v2 Schemas ──────────────────────────────────────
+
+const score0to10 = z.number().min(0).max(10);
+
+export const sectionMetricSchema = z.object({
+  sectionId: z.string().min(1),
+  title: z.string().min(1),
+  wordCount: z.number().int().min(0),
+  bulletCount: z.number().int().min(0),
+  avgBulletWordCount: z.number().min(0),
+  bulletsWithActionVerb: z.number().int().min(0),
+  bulletsWithMetric: z.number().int().min(0),
+});
+
+export const sectionIssueSchema = z.object({
+  itemId: z.string().nullable(),
+  type: z.string().min(1),
+  severity: z.enum(["high", "medium", "low"]),
+  description: z.string().min(1),
+  suggestion: z.string().min(1),
+});
+
+export const sectionScoreSchema = z.object({
+  sectionId: z.string().min(1),
+  contentScore: score0to10,
+  impactScore: score0to10,
+  issues: z.array(sectionIssueSchema),
+});
+
+export const readabilityAssessmentSchema = z.object({
+  score: score0to10,
+  issues: z.array(sectionIssueSchema),
+});
+
+export const analysisResultV2Schema = z.object({
+  deterministicMetrics: deterministicMetricsSchema,
+  sectionMetrics: z.array(sectionMetricSchema),
+  sectionScores: z.array(sectionScoreSchema),
+  readability: readabilityAssessmentSchema,
+  atsReport: atsReportSchema.nullable(),
+  keywordFrequency: z.record(z.string(), z.number()),
+});

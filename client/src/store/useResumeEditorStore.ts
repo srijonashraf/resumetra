@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { TailorResult, AnalysisResult } from "./useStore";
+import type { TailorResult, ParsedResumeData } from "./useStore";
 import { parsedDataToSectionHtml, tailorToEditorContent } from "../utils/editorTransforms";
 
 interface EditorSection {
@@ -21,7 +21,7 @@ interface ResumeEditorState {
 
   initializeFromTailorResult: (
     result: TailorResult,
-    parsedData: AnalysisResult["parsedData"],
+    parsedData: ParsedResumeData,
   ) => void;
   updateSectionContent: (id: string, html: string) => void;
   setActiveSection: (id: string) => void;
@@ -72,7 +72,7 @@ const useResumeEditorStore = create<ResumeEditorState>()((set) => ({
 
   initializeFromTailorResult: (
     result: TailorResult,
-    parsedData: AnalysisResult["parsedData"],
+    parsedData: ParsedResumeData,
   ) => {
     const sections: EditorSection[] = [];
 

@@ -33,3 +33,44 @@ export interface AtsReport {
   partialMatches: PartialMatch[];
   sectionCoverage: Record<string, boolean>;
 }
+
+// ── Analysis v2 Types ────────────────────────────────────────
+
+export interface SectionMetric {
+  sectionId: string;
+  title: string;
+  wordCount: number;
+  bulletCount: number;
+  avgBulletWordCount: number;
+  bulletsWithActionVerb: number;
+  bulletsWithMetric: number;
+}
+
+export interface SectionIssue {
+  itemId: string | null;
+  type: string;
+  severity: "high" | "medium" | "low";
+  description: string;
+  suggestion: string;
+}
+
+export interface SectionScore {
+  sectionId: string;
+  contentScore: number;
+  impactScore: number;
+  issues: SectionIssue[];
+}
+
+export interface ReadabilityAssessment {
+  score: number;
+  issues: SectionIssue[];
+}
+
+export interface AnalysisResultV2 {
+  deterministicMetrics: DeterministicMetrics;
+  sectionMetrics: SectionMetric[];
+  sectionScores: SectionScore[];
+  readability: ReadabilityAssessment;
+  atsReport: AtsReport | null;
+  keywordFrequency: Record<string, number>;
+}

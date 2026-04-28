@@ -1,34 +1,21 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import Card from "../ui/Card";
-import { Button, Tabs } from "../ui";
+import { Tabs } from "../ui";
 import {
-  DocumentTextIcon,
   DocumentArrowUpIcon,
-  ChartBarIcon,
-  AcademicCapIcon,
-  BriefcaseIcon,
-  ClockIcon,
   InformationCircleIcon,
-  PencilSquareIcon,
 } from "@heroicons/react/24/outline";
-import AnalysisHistory from "../analytics/AnalysisHistory";
-import AnalyticsDashboard from "../analytics/AnalyticsDashboard";
-import CareerMap from "../editor/CareerMap";
-import JobAnalysisPanel from "../editor/JobAnalysisPanel";
-import ResumeEditorPanel from "../editor/ResumeEditorPanel";
-import AnalysisResults from "../analytics/AnalysisResults";
 import { useStore } from "../../store/useStore";
+import Button from "../ui/Button";
 
 const DashboardTabs = () => {
-  const [activeTab, setActiveTab] = useState("analysis");
-  const analysisResults = useStore((state) => state.analysisResults);
+  const [activeTab, setActiveTab] = useState("placeholder");
   const resumeData = useStore((state) => state.resumeData);
   const clearCurrentAnalysis = useStore(
     (state) => state.clearCurrentAnalysis
   );
-  const tailorResult = useStore((state) => state.tailorResult);
   const activeEditorTab = useStore((state) => state.activeEditorTab);
   const setActiveEditorTab = useStore((state) => state.setActiveEditorTab);
 
@@ -40,93 +27,31 @@ const DashboardTabs = () => {
   }, [activeEditorTab, setActiveEditorTab]);
 
   const handleTabClick = (tabId: string) => {
-    const tabsNeedingResume = ["analysis", "job-analysis", "career-map", "resume-editor"];
-
-    if (tabsNeedingResume.includes(tabId) && !resumeData) {
-      toast.error("Please upload a resume first to access this feature", {
-        description:
-          "Upload a PDF resume from the main dashboard to get started",
-      });
-      return;
-    }
-
     setActiveTab(tabId);
   };
 
   const tabs = [
     {
-      id: "analysis",
+      id: "placeholder",
       name: "Analysis",
-      icon: DocumentTextIcon,
-      disabled: !resumeData,
-    },
-    {
-      id: "job-analysis",
-      name: "Job Analysis & Tailor Resume",
-      icon: BriefcaseIcon,
-      disabled: !resumeData,
-    },
-    {
-      id: "career-map",
-      name: "Career Map",
-      icon: AcademicCapIcon,
-      disabled: !resumeData,
-    },
-    {
-      id: "resume-editor",
-      name: "Resume Editor",
-      icon: PencilSquareIcon,
-      disabled: !resumeData || !tailorResult,
-    },
-    {
-      id: "analytics",
-      name: "Analytics",
-      icon: ChartBarIcon,
-      disabled: false,
-    },
-    {
-      id: "history",
-      name: "History",
-      icon: ClockIcon,
+      icon: DocumentArrowUpIcon,
       disabled: false,
     },
   ];
 
   const renderTabContent = () => {
-    switch (activeTab) {
-      case "analysis":
-        return analysisResults ? (
-          <AnalysisResults analysisResults={analysisResults} />
-        ) : (
-          <Card padding="lg" className="text-center">
-            <DocumentTextIcon className="h-16 w-16 mx-auto text-stone-300 mb-4" />
-            <h3 className="text-xl font-medium text-stone-600 mb-2">
-              No Analysis Available
-            </h3>
-            <p className="text-stone-400">
-              Upload and analyze your resume to see results here.
-            </p>
-          </Card>
-        );
-
-      case "job-analysis":
-        return <JobAnalysisPanel />;
-
-      case "career-map":
-        return <CareerMap />;
-
-      case "resume-editor":
-        return <ResumeEditorPanel />;
-
-      case "analytics":
-        return <AnalyticsDashboard />;
-
-      case "history":
-        return <AnalysisHistory />;
-
-      default:
-        return null;
-    }
+    return (
+      <Card padding="lg" className="text-center">
+        <DocumentArrowUpIcon className="h-16 w-16 mx-auto text-stone-300 mb-4" />
+        <h3 className="text-xl font-medium text-stone-600 mb-2">
+          Analysis Features Coming Soon
+        </h3>
+        <p className="text-stone-400">
+          Job analysis, career map, resume editor, analytics, and history will
+          be re-enabled as each Phase 2 stage completes.
+        </p>
+      </Card>
+    );
   };
 
   return (

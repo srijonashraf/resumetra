@@ -5,110 +5,6 @@ export interface ResumeData {
   rawText: string;
 }
 
-export interface AnalysisResult {
-  analysisId?: string;
-  overallScore: number;
-  scores: {
-    /** 0–10 scale. Used by radar chart and score cards. */
-    atsCompatibility: number;
-    contentQuality: number;
-    impact: number;
-    readability: number;
-  };
-  experienceLevel:
-    | "Entry-Level"
-    | "Junior"
-    | "Mid-Level"
-    | "Senior"
-    | "Lead/Principal"
-    | "Executive";
-  yearsOfExperience: number;
-  metrics: {
-    wordCount: number;
-    pageCount: number;
-    bulletPointCount: number;
-    skillsCount: number;
-    uniqueSkillsCount: number;
-    experienceEntriesCount: number;
-    educationEntriesCount: number;
-    hasEmail: boolean;
-    hasPhone: boolean;
-    hasLinkedin: boolean;
-    hasPortfolio: boolean;
-    grammarIssuesCount: number;
-    spellingIssuesCount: number;
-    passiveVoiceCount: number;
-    measurableAchievementsCount: number;
-    actionVerbCount: number;
-    buzzwordCount: number;
-    sectionCompletenessScore: number;
-  };
-  parsedData: {
-    fullName: string | null;
-    email: string | null;
-    phone: string | null;
-    location: string | null;
-    technicalSkills: string[];
-    softSkills: string[];
-    jobTitles: string[];
-    education: Array<{
-      institution: string;
-      degree: string;
-      field: string;
-      year: string;
-    }>;
-    workExperiences: Array<{
-      company: string;
-      title: string;
-      startDate: string;
-      endDate: string;
-      description: string;
-    }>;
-    projects: Array<{
-      name: string;
-      description: string;
-      technologies: string[];
-    }>;
-    certifications: Array<{
-      name: string;
-      issuer: string;
-      year: string;
-    }>;
-  };
-  feedback: {
-    summary: string;
-    hiringRecommendation:
-      | "Strong Hire"
-      | "Hire"
-      | "Maybe"
-      | "No Hire"
-      | "Needs More Info";
-    strengths: string[];
-    weaknesses: string[];
-    improvementAreas: string[];
-    missingSkills: string[];
-    redFlags: string[];
-    suggestions: {
-      immediate: string[];
-      shortTerm: string[];
-      longTerm: string[];
-    };
-  };
-  atsCompatibility: {
-    /** 0–100 scale. Used by progress bar. DB stores 0-10; this is multiplied by 10. */
-    score: number;
-    issues: string[];
-  };
-  metadata?: {
-    analyzedAt: string;
-    analysisVersion: string;
-  };
-  isGuest?: boolean;
-  guestId?: string;
-  remainingAnalyses?: number;
-  message?: string;
-}
-
 export interface JobMatchResult {
   matchPercentage: number;
   matchLevel: "Poor" | "Fair" | "Good" | "Excellent";
@@ -190,6 +86,43 @@ export interface TailorResult {
   };
 }
 
+/**
+ * Parsed resume data shape used by editor and PDF generation.
+ * Will be replaced by extraction-based types in Phase 3.
+ */
+export interface ParsedResumeData {
+  fullName: string | null;
+  email: string | null;
+  phone: string | null;
+  location: string | null;
+  technicalSkills: string[];
+  softSkills: string[];
+  jobTitles: string[];
+  education: Array<{
+    institution: string;
+    degree: string;
+    field: string;
+    year: string;
+  }>;
+  workExperiences: Array<{
+    company: string;
+    title: string;
+    startDate: string;
+    endDate: string;
+    description: string;
+  }>;
+  projects: Array<{
+    name: string;
+    description: string;
+    technologies: string[];
+  }>;
+  certifications: Array<{
+    name: string;
+    issuer: string;
+    year: string;
+  }>;
+}
+
 export type ExtractionPhase =
   | "idle"
   | "validating"
@@ -238,53 +171,13 @@ export interface ExtractionResult {
   analysisId?: string;
 }
 
-export interface AnalysisHistoryEntry {
-  id: string;
-  date: Date;
-  resumeData: ResumeData;
-  analysisResults: AnalysisResult;
-  jobMatchResults?: JobMatchResult;
-}
-
-export interface HistorySummary {
-  total_analyses: number;
-  average_overall_score: number;
-  average_ats_score: number;
-  average_content_quality_score: number;
-  average_impact_score: number;
-  average_readability_score: number;
-  latest_analysis: Date | null;
-  score_trend: {
-    date: Date;
-    overall_score: number;
-  }[];
-}
-
-export interface SkillGapTrend {
-  skill: string;
-  frequency: number;
-}
-
 interface StoreState {
   resumeData: ResumeData | null;
-  analysisResults: AnalysisResult | null;
-  analysisPhase: "idle" | "scoring" | "feedback" | "complete";
-  jobMatchResults: JobMatchResult | null;
-  analysisHistory: AnalysisHistoryEntry[];
   jobDescription: string;
-  isGuest: boolean;
-  guestMessage: string | null;
   usage: { used: number; limit: number; remaining: number } | null;
   setResumeData: (data: ResumeData) => void;
-  setAnalysisResults: (results: AnalysisResult) => void;
-  setAnalysisPhase: (phase: StoreState["analysisPhase"]) => void;
-  setJobMatchResults: (results: JobMatchResult) => void;
   setJobDescription: (description: string) => void;
-  setAnalysisHistory: (history: AnalysisHistoryEntry[]) => void;
-  addAnalysisHistory: (entry: AnalysisHistoryEntry) => void;
   clearCurrentAnalysis: () => void;
-  removeFromHistory: (id: string) => void;
-  setGuestMode: (isGuest: boolean, message?: string) => void;
   setUsage: (usage: { used: number; limit: number; remaining: number } | null) => void;
   tailorResult: TailorResult | null;
   setTailorResult: (result: TailorResult | null) => void;
@@ -302,13 +195,7 @@ interface StoreState {
 
 const useStore = create<StoreState>()((set) => ({
   resumeData: null,
-  analysisResults: null,
-  analysisPhase: "idle",
-  jobMatchResults: null,
-  analysisHistory: [],
   jobDescription: "",
-  isGuest: false,
-  guestMessage: null,
   usage: null,
   tailorResult: null,
   activeEditorTab: null,
@@ -317,23 +204,11 @@ const useStore = create<StoreState>()((set) => ({
   extractionProgress: null,
   extractionConfirmed: false,
   setResumeData: (data) => set({ resumeData: data }),
-  setAnalysisResults: (results) => set({ analysisResults: results }),
-  setAnalysisPhase: (phase) => set({ analysisPhase: phase }),
-  setJobMatchResults: (results) => set({ jobMatchResults: results }),
   setJobDescription: (description) => set({ jobDescription: description }),
-  setAnalysisHistory: (history) => set({ analysisHistory: history }),
-  addAnalysisHistory: (entry) =>
-    set((state) => ({
-      analysisHistory: [entry, ...state.analysisHistory],
-    })),
   clearCurrentAnalysis: () =>
     set({
       resumeData: null,
-      analysisResults: null,
-      analysisPhase: "idle",
-      jobMatchResults: null,
       jobDescription: "",
-      guestMessage: null,
       tailorResult: null,
       activeEditorTab: null,
       extractionResult: null,
@@ -341,12 +216,6 @@ const useStore = create<StoreState>()((set) => ({
       extractionProgress: null,
       extractionConfirmed: false,
     }),
-  removeFromHistory: (id) =>
-    set((state) => ({
-      analysisHistory: state.analysisHistory.filter((entry) => entry.id !== id),
-    })),
-  setGuestMode: (isGuest, message) =>
-    set({ isGuest, guestMessage: message || null }),
   setUsage: (usage) => set({ usage }),
   setTailorResult: (result) => set({ tailorResult: result }),
   setActiveEditorTab: (tab) => set({ activeEditorTab: tab }),

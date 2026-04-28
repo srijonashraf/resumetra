@@ -1,60 +1,27 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import {
-  useStore,
-  AnalysisResult,
-  AnalysisHistoryEntry,
-} from "../store/useStore";
-import { analyzeResumeStream, extractResumeStream } from "../services/api";
+import { useStore } from "../store/useStore";
+import { extractResumeStream } from "../services/api";
 import { ApiError } from "../services/errors";
 import PdfUploader from "../components/upload/PdfUploader";
 import SectionConfirmation from "../components/upload/SectionConfirmation";
 import ResumeHealthCheck from "../components/upload/ResumeHealthCheck";
 import DashboardTabs from "../components/dashboard/DashboardTabs";
-import GuestBanner from "../components/dashboard/GuestBanner";
 import AppShell from "../components/app/AppShell";
-import { fetchUserHistory, fetchUsage } from "../services/api";
+import { fetchUsage } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import Card from "../components/ui/Card";
-import { Button, Spinner } from "../components/ui";
-import type {
-  SSEScoringPayload,
-  SSEFeedbackPayload,
-  SSECompletePayload,
-  SSEExtractionProgress,
-} from "../types";
+import { Spinner } from "../components/ui";
+import type { SSEExtractionProgress } from "../types";
 import { NoSymbolIcon } from "@heroicons/react/24/outline";
-
-const DEFAULT_FEEDBACK: AnalysisResult["feedback"] = {
-  summary: "",
-  hiringRecommendation: "Needs More Info",
-  strengths: [],
-  weaknesses: [],
-  improvementAreas: [],
-  missingSkills: [],
-  redFlags: [],
-  suggestions: { immediate: [], shortTerm: [], longTerm: [] },
-};
 
 const Dashboard = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [guestLimitReached, setGuestLimitReached] = useState(false);
 
   const { user } = useAuth();
 
   const resumeData = useStore((state) => state.resumeData);
-  const analysisResults = useStore((state) => state.analysisResults);
-  const analysisPhase = useStore((state) => state.analysisPhase);
-  const isGuest = useStore((state) => state.isGuest);
-  const guestMessage = useStore((state) => state.guestMessage);
-  const setAnalysisResults = useStore((state) => state.setAnalysisResults);
-  const setAnalysisPhase = useStore((state) => state.setAnalysisPhase);
-  const addAnalysisHistory = useStore((state) => state.addAnalysisHistory);
-  const setAnalysisHistory = useStore((state) => state.setAnalysisHistory);
-  const clearCurrentAnalysis = useStore((state) => state.clearCurrentAnalysis);
-  const setGuestMode = useStore((state) => state.setGuestMode);
   const setUsage = useStore((state) => state.setUsage);
   const usage = useStore((state) => state.usage);
   const extractionResult = useStore((state) => state.extractionResult);
@@ -65,29 +32,24 @@ const Dashboard = () => {
   const extractionConfirmed = useStore((state) => state.extractionConfirmed);
   const setExtractionConfirmed = useStore((state) => state.setExtractionConfirmed);
   const setExtractionProgress = useStore((state) => state.setExtractionProgress);
+  const clearCurrentAnalysis = useStore((state) => state.clearCurrentAnalysis);
 
   useEffect(() => {
-    const loadHistory = async () => {
+    const loadUsage = async () => {
       try {
-        const [historyResult, usageData] = await Promise.all([
-          fetchUserHistory(),
-          fetchUsage(),
-        ]);
-        setAnalysisHistory(historyResult.data);
+        const usageData = await fetchUsage();
         setUsage(usageData);
       } catch (err) {
-        console.error("Failed to load history:", err);
+        console.error("Failed to load usage:", err);
       }
     };
 
     if (user) {
-      setGuestMode(false);
-      loadHistory();
+      loadUsage();
     } else {
-      setAnalysisHistory([]);
       setUsage(null);
     }
-  }, [user, setAnalysisHistory, setGuestMode, setUsage]);
+  }, [user, setUsage]);
 
   // Extraction flow: trigger when PDF file is set and no extraction in progress
   useEffect(() => {
@@ -139,109 +101,9 @@ const Dashboard = () => {
     setExtractionProgress,
   ]);
 
-  useEffect(() => {
-    const analyzeUploadedResume = async () => {
-      if (resumeData && !analysisResults && analysisPhase === "idle" && resumeData.rawText) {
-        setIsAnalyzing(true);
-        setError(null);
-
-        try {
-          const completeResults: SSECompletePayload = await analyzeResumeStream(
-            resumeData.rawText,
-            // Phase 1: Scoring data received
-            (scoringData: SSEScoringPayload) => {
-              setAnalysisResults({
-                ...scoringData,
-                feedback: DEFAULT_FEEDBACK,
-              });
-              setAnalysisPhase("scoring");
-            },
-            // Phase 2: Feedback data received
-            (feedbackData: SSEFeedbackPayload) => {
-              const current = useStore.getState().analysisResults;
-              if (current) {
-                setAnalysisResults({
-                  ...current,
-                  feedback: feedbackData.feedback,
-                });
-              }
-              setAnalysisPhase("feedback");
-            },
-            {
-              sourceType: resumeData.file ? "pdf" : "text",
-              ...(resumeData.file?.name
-                ? { originalFileName: resumeData.file.name }
-                : {}),
-            },
-          );
-
-          // Full result
-          setAnalysisResults(completeResults as unknown as AnalysisResult);
-          setAnalysisPhase("complete");
-
-          if (completeResults.isGuest) {
-            setGuestMode(true, completeResults.message ?? undefined);
-          }
-
-          if (
-            !completeResults.isGuest ||
-            (completeResults.remainingAnalyses ?? 0) > 0
-          ) {
-            const historyEntry: AnalysisHistoryEntry = {
-              id: completeResults.analysisId || crypto.randomUUID(),
-              date: new Date(),
-              resumeData,
-              analysisResults: completeResults as unknown as AnalysisResult,
-            };
-
-            addAnalysisHistory(historyEntry);
-          }
-        } catch (err: unknown) {
-          console.error("Error analyzing resume:", err);
-
-          if (err instanceof ApiError) {
-            if (
-              err.status === 429 &&
-              (err.data as { requiresLogin?: boolean })?.requiresLogin
-            ) {
-              setError(err.message);
-              setGuestMode(true, err.message);
-              setGuestLimitReached(true);
-            } else {
-              const data = err.data as Record<string, unknown> | undefined;
-              const detectedType = data?.detectedType as string | undefined;
-              setError(
-                detectedType
-                  ? `${err.message} (Detected: ${detectedType})`
-                  : err.message,
-              );
-            }
-          } else {
-            setError("Failed to analyze resume. Please try again.");
-          }
-          setAnalysisPhase("idle");
-        } finally {
-          setIsAnalyzing(false);
-        }
-      }
-    };
-
-    analyzeUploadedResume();
-  }, [
-    resumeData,
-    analysisResults,
-    analysisPhase,
-    setAnalysisResults,
-    setAnalysisPhase,
-    addAnalysisHistory,
-    user,
-    setGuestMode,
-  ]);
-
   const handleNewAnalysis = () => {
     clearCurrentAnalysis();
     setError(null);
-    setGuestLimitReached(false);
   };
 
   return (
@@ -300,19 +162,12 @@ const Dashboard = () => {
                   Analysis Error
                 </h2>
                 <p className="text-red-500 mt-2 mb-6">{error}</p>
-                {guestLimitReached ? (
-                  <Link
-                    to="/login"
-                    onClick={handleNewAnalysis}
-                    className="inline-flex items-center px-6 py-3 bg-amber-600 text-white font-medium rounded-lg hover:bg-amber-700 transition-colors"
-                  >
-                    Sign In to Continue
-                  </Link>
-                ) : (
-                  <Button variant="danger" onClick={handleNewAnalysis}>
-                    Try Again
-                  </Button>
-                )}
+                <button
+                  className="px-6 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
+                  onClick={handleNewAnalysis}
+                >
+                  Try Again
+                </button>
               </Card>
             ) : extractionPhase === "validating" ? (
               <Card padding="xl" className="text-center">
@@ -348,60 +203,18 @@ const Dashboard = () => {
                 careerLevel={extractionResult.careerLevel}
                 sectionCoverage={extractionResult.sectionCoverage}
               />
-            ) : isAnalyzing && analysisPhase === "idle" ? (
+            ) : isAnalyzing ? (
               <Card padding="xl" className="text-center">
                 <Spinner size="lg" className="mb-6" />
                 <h2 className="text-2xl font-bold text-stone-900 mb-2">
-                  Parsing your resume...
+                  Processing your resume...
                 </h2>
                 <p className="text-stone-500 text-lg">
-                  Extracting structure and computing scores.
+                  Please wait while we analyze your document.
                 </p>
               </Card>
-            ) : isAnalyzing && analysisPhase === "scoring" ? (
-              <div className="space-y-8">
-                <DashboardTabs />
-                <Card
-                  padding="md"
-                  className="text-center border-amber-200 bg-amber-50"
-                >
-                  <Spinner size="md" className="mb-3" />
-                  <h3 className="text-lg font-semibold text-amber-800">
-                    Generating detailed feedback...
-                  </h3>
-                  <p className="text-amber-600 text-sm">
-                    Scores are ready. Feedback is loading.
-                  </p>
-                </Card>
-              </div>
             ) : (
-              <>
-                {isGuest && !user && guestMessage && (
-                  <GuestBanner
-                    message={guestMessage}
-                    onClose={() => setGuestMode(false)}
-                  />
-                )}
-
-                {usage && !isGuest && (
-                  <div className="bg-stone-50 border border-stone-200 rounded-xl px-4 py-2.5 flex items-center justify-between">
-                    <span className="text-sm text-stone-600">
-                      Analyses used:{" "}
-                      <span className="font-semibold text-stone-900">
-                        {usage.used}
-                      </span>{" "}
-                      / {usage.limit}
-                    </span>
-                    {usage.remaining === 0 && (
-                      <span className="text-xs font-medium text-red-600">
-                        Limit reached
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                <DashboardTabs />
-              </>
+              <DashboardTabs />
             )}
           </div>
         )}

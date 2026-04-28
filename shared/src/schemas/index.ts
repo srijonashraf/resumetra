@@ -11,6 +11,11 @@ export {
   deterministicMetricsSchema,
   partialMatchSchema,
   atsReportSchema,
+  sectionMetricSchema,
+  sectionIssueSchema,
+  sectionScoreSchema,
+  readabilityAssessmentSchema,
+  analysisResultV2Schema,
 } from "./metrics.js";
 export { templateStyleSchema, templateConfigSchema } from "./templateConfig.js";
 export { validationOutcomeSchema, validationResultSchema } from "./validation.js";
